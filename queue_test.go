@@ -13,47 +13,59 @@
 package io_util_test
 
 import (
+	"math/rand"
 	"testing"
 
-	"gitee.com/ivfzhou/io-util"
+	iu "gitee.com/ivfzhou/io-util"
 )
 
 func TestQueue(t *testing.T) {
-	queue := &io_util.Queue[int]{}
-	queue.Push(1)
-	queue.Push(2)
-	queue.Push(3)
-	queue.Push(4)
-	queue.Push(5)
-	elem := <-queue.GetFromChan()
-	if 1 != elem {
-		t.Error("queue: queue elem does not match", elem)
-	}
-	elem = <-queue.GetFromChan()
-	if 2 != elem {
-		t.Error("queue: queue elem does not match", elem)
-	}
-	elem = <-queue.GetFromChan()
-	if 3 != elem {
-		t.Error("queue: queue elem does not match", elem)
-	}
-	elem = <-queue.GetFromChan()
-	if 4 != elem {
-		t.Error("queue: queue elem does not match", elem)
-	}
-	queue.Close()
-	elem = <-queue.GetFromChan()
-	if 5 != elem {
-		t.Error("queue: queue elem does not match", elem)
-	}
+	t.Run("正常使用", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			data := make([]int, 1024*1024*(rand.Intn(3)+1))
+			for i := range data {
+				data[i] = rand.Intn(100)
+			}
 
-	queue.Push(6)
-	queue.Push(7)
-	elem = <-queue.GetFromChan()
-	if 0 != elem {
-		t.Error("queue: queue elem does not match", elem)
-	}
-	if 0 != elem {
-		t.Error("queue: queue elem does not match", elem)
-	}
+			queue := &iu.Queue[int]{}
+			go func() {
+				for i := range data {
+					ok := queue.Push(data[i])
+					if !ok {
+						t.Errorf("unexpected result: want true, got %v", ok)
+					}
+				}
+				queue.Close()
+			}()
+
+			index := 0
+			for v := range queue.GetFromChan() {
+				if v != data[index] {
+					t.Errorf("unexpected result: want %v, got %v", data[index], v)
+				}
+				index++
+			}
+		}
+	})
+
+	t.Run("关闭后再 Push", func(t *testing.T) {
+		queue := &iu.Queue[int]{}
+		ok := queue.Push(1)
+		if !ok {
+			t.Errorf("unexpected result: want true, got %v", ok)
+		}
+		queue.Close()
+		ok = queue.Push(2)
+		if ok {
+			t.Errorf("unexpected result: want false, got %v", ok)
+		}
+		value := <-queue.GetFromChan()
+		if value != 1 {
+			t.Errorf("unexpected result: want 1, got %v", value)
+		}
+		_, ok = <-queue.GetFromChan()
+		if ok {
+			t.Errorf("unexpected result: want false, got %v", ok)
+		}
+	})
 }
