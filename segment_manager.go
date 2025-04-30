@@ -42,7 +42,7 @@ func (m *SegmentManager) WriteAt(bs []byte, offset int64) (int, error) {
 
 	// 丢弃在读取位置前的写入。
 	if offset < int64(m.readPosition) {
-		bs = bs[m.min(len(bs), int64(m.readPosition)-offset):]
+		bs = bs[min(int64(len(bs)), int64(m.readPosition)-offset):]
 		offset = int64(m.readPosition)
 	}
 	if len(bs) <= 0 {
@@ -69,11 +69,11 @@ func (m *SegmentManager) WriteAt(bs []byte, offset int64) (int, error) {
 		}
 		if i == start {
 			writeOffset := offset % SegmentLength
-			writeLength := m.min(len(bs), SegmentLength-writeOffset)
+			writeLength := min(int64(len(bs)), SegmentLength-writeOffset)
 			copy(sg.data[writeOffset:], bs[:writeLength])
 			bs = bs[writeLength:]
 		} else {
-			writeLength := m.min(len(bs), SegmentLength)
+			writeLength := min(len(bs), SegmentLength)
 			copy(sg.data[:], bs[:writeLength])
 			bs = bs[writeLength:]
 		}
@@ -109,7 +109,7 @@ func (m *SegmentManager) Read(bs []byte) (int, error) {
 
 	// 读取数据到字节数组 bs。
 	off := m.readPosition % SegmentLength
-	canReadLength := int(m.min(getLen, int64(SegmentLength-off)))
+	canReadLength := int(min(int64(getLen), int64(SegmentLength-off)))
 	copy(bs, sg.data[off:off+canReadLength])
 
 	// 读取完了，回收段。
@@ -148,13 +148,4 @@ func recycleSegment(sg *segment) {
 		return
 	}
 	segmentPool.Put(sg)
-}
-
-// 取小值返回。
-func (m *SegmentManager) min(x int, y int64) int64 {
-	z := int64(x)
-	if z < y {
-		return z
-	}
-	return y
 }

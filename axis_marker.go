@@ -286,20 +286,6 @@ func additionOverflow(x, y int) {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // 增加数组长度。
 func (m *AxisMarker) expandCapacity(number int) {
 	if cap(m.markedLines)-len(m.markedLines) >= number {

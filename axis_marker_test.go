@@ -1054,13 +1054,6 @@ func TestAxisMarker(t *testing.T) {
 	})
 }
 
-func max(x, y int) int {
-	if x > y {
-		return x
-	}
-	return y
-}
-
 func newCoordinateAxisMarker(t *testing.T) *iu.AxisMarker {
 	marker := &iu.AxisMarker{}
 
