@@ -25,51 +25,67 @@ var (
 	ErrReaderIsClosed       = errors.New("reader is closed")
 )
 
+// WriteAtCloser 数据写入接口。
 type WriteAtCloser interface {
 	io.WriterAt
 	io.Closer
 
-	// CloseByError Deprecated: 使用 Close 代替。
+	// CloseByError 关闭写入。
+	//
+	// Deprecated: 使用 Close 代替。
 	CloseByError(error) error
 }
 
-type readCloser struct {
-	*writerAtToReader
+type writeAtCloser interface {
+	io.WriterAt
+	closeWrite() error
 }
 
-type writeCloser struct {
-	*writerAtToReader
+type readCloser interface {
+	io.Reader
+	closeRead() error
 }
 
 type writerAtToReader struct {
-	segments                         *SegmentManager
+	segments                         SegmentManager
 	lock                             sync.Mutex
 	writerCloseFlag, readerCloseFlag int32
 }
 
-// NewWriteAtToReader 获取一个 WriteAtCloser 和 io.ReadCloser 对象，其中 wc 用于并发写入数据，而与此同时 rc 对象同时读取出已经写入好的数据。
-//
-// wc 写入完毕后调用 Close，则 rc 会全部读取完后返回 io.EOF。
-//
-// wc 发生的 error 会传递给 rc 返回。
-func NewWriteAtToReader() (wc WriteAtCloser, rc io.ReadCloser) {
-	w := &writerAtToReader{segments: &SegmentManager{}}
-	return &writeCloser{w}, &readCloser{w}
+type writeAtCloserImpl struct {
+	writeAtCloser
 }
 
-// NewWriteAtReader 获取一个WriterAt和Reader对象，其中WriterAt用于并发写入数据，而与此同时Reader对象同时读取出已经写入好的数据。
+type readCloserImpl struct {
+	readCloser
+}
+
+// NewWriteAtToReader 获取一个 WriteAtCloser 和 io.ReadCloser 对象，其中 wc 用于并发写入数据，与此同时 rc 读取出已经写入好的数据。
 //
-// WriterAt写入完毕后调用Close，则Reader会全部读取完后结束读取。
+// wc：写入流。写入完毕后关闭，则 rc 会全部读取完后返回 io.EOF。
 //
-// WriterAt发生的error会传递给Reader返回。
+// rc：读取流。
 //
-// 该接口是特定为一个目的实现————服务器分片下载数据中转给客户端下载，提高中转数据效率。
+// wc 发生的错误会传递给 rc 返回。
+func NewWriteAtToReader() (wc WriteAtCloser, rc io.ReadCloser) {
+	w := &writerAtToReader{}
+	return &writeAtCloserImpl{w}, &readCloserImpl{w}
+}
+
+// NewWriteAtReader 获取一个 WriteAtCloser 和 io.ReadCloser 对象，其中 wc 用于并发写入数据，与此同时 rc 读取出已经写入好的数据。
+//
+// wc：写入流。写入完毕后关闭，则 rc 会全部读取完后返回 io.EOF。
+//
+// rc：读取流。
+//
+// wc 发生的错误会传递给 rc 返回。
 //
 // Deprecated: 使用 NewWriteAtToReader 代替。
-func NewWriteAtReader() (WriteAtCloser, io.ReadCloser) {
+func NewWriteAtReader() (wc WriteAtCloser, rc io.ReadCloser) {
 	return NewWriteAtToReader()
 }
 
+// WriteAt 写入数据。
 func (m *writerAtToReader) WriteAt(bs []byte, offset int64) (writtenLength int, err error) {
 	if offset < 0 {
 		return 0, ErrOffsetCannotNegative
@@ -92,6 +108,7 @@ func (m *writerAtToReader) WriteAt(bs []byte, offset int64) (writtenLength int, 
 	return m.segments.WriteAt(bs, offset)
 }
 
+// Read 读取数据。
 func (m *writerAtToReader) Read(p []byte) (int, error) {
 	// 已经关闭了就不能再读取流。
 	if atomic.LoadInt32(&m.readerCloseFlag) > 0 {
@@ -117,28 +134,23 @@ func (m *writerAtToReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func (r *readCloser) Close() error {
-	return r.closeReader()
-}
+// Close 关闭写入流。
+func (c *writeAtCloserImpl) Close() error { return c.closeWrite() }
 
-func (r *writeCloser) Close() error {
-	return r.closeWriter()
-}
+// CloseByError 关闭写入流。
+func (c *writeAtCloserImpl) CloseByError(error) error { return c.closeWrite() }
 
-func (r *writeCloser) CloseByError(_ error) error {
-	return r.closeWriter()
-}
+// Close 关闭读取流。
+func (c *readCloserImpl) Close() error { return c.closeRead() }
 
-// 关闭写入。
-func (m *writerAtToReader) closeWriter() error {
+func (m *writerAtToReader) closeWrite() error {
 	if atomic.CompareAndSwapInt32(&m.writerCloseFlag, 0, 1) {
 		return nil
 	}
 	return ErrWriterIsClosed
 }
 
-// 关闭读取。
-func (m *writerAtToReader) closeReader() error {
+func (m *writerAtToReader) closeRead() error {
 	if atomic.CompareAndSwapInt32(&m.readerCloseFlag, 0, 1) {
 		m.segments.Discard()
 		return nil

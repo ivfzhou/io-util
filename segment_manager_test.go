@@ -16,6 +16,8 @@ import (
 	"bytes"
 	"io"
 	"math/rand"
+	"runtime"
+	"sync"
 	"testing"
 
 	iu "gitee.com/ivfzhou/io-util"
@@ -23,401 +25,404 @@ import (
 
 func TestSegmentManager(t *testing.T) {
 	t.Run("一个段中写入和读取", func(t *testing.T) {
-		m := &iu.SegmentManager{}
+		for i := 0; i < 100; i++ {
+			m := &iu.SegmentManager{}
 
-		data := []byte("hello world")
-		n, err := m.WriteAt(data, 0)
-		if err != nil {
-			t.Errorf("WriteAt() error %v", err)
-		}
-		if n != len(data) {
-			t.Errorf("WriteAt() returns %d, want %d", n, len(data))
-		}
+			expectedResult := []byte("hello world")
+			n, err := m.WriteAt(expectedResult, 0)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), n)
+			}
 
-		expected := make([]byte, len(data))
-		n, err = io.ReadFull(m, expected)
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != len(expected) {
-			t.Errorf("Read() returns %d, want %d", n, len(expected))
-		}
-		if !bytes.Equal(expected, data) {
-			t.Errorf("Read() returns %v, want %v", expected, data)
-		}
+			result := make([]byte, len(expectedResult))
+			n, err = io.ReadFull(m, result)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", len(result), n)
+			}
+			if !bytes.Equal(result, expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", expectedResult, result)
+			}
 
-		m.Discard()
+			m.Discard()
+		}
 	})
 
 	t.Run("一个段中部写入", func(t *testing.T) {
-		m := &iu.SegmentManager{}
+		for i := 0; i < 100; i++ {
+			m := &iu.SegmentManager{}
 
-		data := []byte("hello world")
-		n, err := m.WriteAt(data, 10)
-		if err != nil {
-			t.Errorf("WriteAt() error %v", err)
-		}
-		if n != len(data) {
-			t.Errorf("WriteAt() returns %d, want %d", n, len(data))
-		}
+			expectedResult := []byte("hello world")
+			n, err := m.WriteAt(expectedResult, 10)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), n)
+			}
 
-		expected := make([]byte, len(data))
-		n, err = m.Read(expected)
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != 0 {
-			t.Errorf("Read() returns %d, want %d", n, 0)
-		}
+			result := make([]byte, len(expectedResult))
+			n, err = m.Read(result)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != 0 {
+				t.Errorf("unexpected result: want 0, got %v", n)
+			}
 
-		m.Discard()
+			m.Discard()
+		}
 	})
 
 	t.Run("一个段中多次读取", func(t *testing.T) {
-		m := &iu.SegmentManager{}
+		for i := 0; i < 100; i++ {
+			m := &iu.SegmentManager{}
 
-		data := []byte("hello world")
-		n, err := m.WriteAt(data, 0)
-		if err != nil {
-			t.Errorf("WriteAt() error %v", err)
-		}
-		if n != len(data) {
-			t.Errorf("WriteAt() returns %d, want %d", n, len(data))
-		}
+			expectedResult := []byte("hello world")
+			n, err := m.WriteAt(expectedResult, 0)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), n)
+			}
 
-		readLength := len(data) / 2
-		expected := make([]byte, readLength)
-		n, err = io.ReadFull(m, expected)
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != len(expected) {
-			t.Errorf("Read() returns %d, want %d", n, len(expected))
-		}
-		if !bytes.Equal(expected, data[:n]) {
-			t.Errorf("Read() returns %s, want %s", expected, data[:n])
-		}
+			readLength := len(expectedResult) / 2
+			result := make([]byte, readLength)
+			n, err = io.ReadFull(m, result)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", len(result), n)
+			}
+			if !bytes.Equal(result, expectedResult[:n]) {
+				t.Errorf("unexpected result: want %v, got %v", expectedResult[:n], result)
+			}
 
-		n, err = io.ReadFull(m, expected)
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != len(expected) {
-			t.Errorf("Read() returns %d, want %d", n, len(data))
-		}
-		if !bytes.Equal(expected, data[readLength:readLength+n]) {
-			t.Errorf("Read() returns %s, want %s", expected, data[readLength:readLength+n])
-		}
+			n, err = io.ReadFull(m, result)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), n)
+			}
+			if !bytes.Equal(result, expectedResult[readLength:readLength+n]) {
+				t.Errorf("unexpected result: want %v, got %v", expectedResult[readLength:readLength+n], result)
+			}
 
-		m.Discard()
+			m.Discard()
+		}
 	})
 
 	t.Run("一个段读取，刚好读完", func(t *testing.T) {
-		m := &iu.SegmentManager{}
+		for i := 0; i < 100; i++ {
+			m := &iu.SegmentManager{}
 
-		data := make([]byte, iu.SegmentLength)
-		for i := range data {
-			data[i] = byte(rand.Intn(255))
-		}
-		n, err := m.WriteAt(data, 0)
-		if err != nil {
-			t.Errorf("WriteAt() error %v", err)
-		}
-		if n != len(data) {
-			t.Errorf("WriteAt() returns %d, want %d", n, len(data))
-		}
+			expectedResult := make([]byte, iu.SegmentLength)
+			for i := range expectedResult {
+				expectedResult[i] = byte(rand.Intn(255))
+			}
+			n, err := m.WriteAt(expectedResult, 0)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), n)
+			}
 
-		expected := make([]byte, len(data))
-		n, err = io.ReadFull(m, expected)
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != len(expected) {
-			t.Errorf("Read() returns %d, want %d", n, len(expected))
-		}
-		if !bytes.Equal(expected, data) {
-			t.Errorf("Read() returns %d, want %d", len(expected), len(data))
-		}
+			result := make([]byte, len(expectedResult))
+			n, err = io.ReadFull(m, result)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", n, len(result))
+			}
+			if !bytes.Equal(result, expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), len(result))
+			}
 
-		m.Discard()
+			m.Discard()
+		}
 	})
 
 	t.Run("跨一个段读取，超过写入", func(t *testing.T) {
-		writeLength := iu.SegmentLength + 10
-		data := make([]byte, writeLength)
-		for i := range data {
-			data[i] = byte(rand.Int31n(1<<8 - 1))
-		}
+		for i := 0; i < 100; i++ {
+			writeLength := iu.SegmentLength + 10
+			expectedResult := make([]byte, writeLength)
+			for i := range expectedResult {
+				expectedResult[i] = byte(rand.Int31n(1<<8 - 1))
+			}
 
-		m := &iu.SegmentManager{}
-		n, err := m.WriteAt(data, 0)
-		if err != nil {
-			t.Errorf("WriteAt() error %v", err)
-		}
-		if n != len(data) {
-			t.Errorf("WriteAt() returns %d, want %d", n, len(data))
-		}
+			m := &iu.SegmentManager{}
+			n, err := m.WriteAt(expectedResult, 0)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), n)
+			}
 
-		readLength := iu.SegmentLength / 3 * 2
-		expected := make([]byte, readLength)
-		n, err = io.ReadFull(m, expected)
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != len(expected) {
-			t.Errorf("Read() returns %d, want %d", n, len(expected))
-		}
-		if !bytes.Equal(expected, data[:readLength]) {
-			t.Errorf("Read() returns %d, want %d", len(expected), len(data[:readLength]))
-		}
+			readLength := iu.SegmentLength / 3 * 2
+			result := make([]byte, readLength)
+			n, err = io.ReadFull(m, result)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", len(result), n)
+			}
+			if !bytes.Equal(result, expectedResult[:readLength]) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult[:readLength]), len(result))
+			}
 
-		remain := writeLength - readLength
-		n, err = io.ReadFull(m, expected[:remain])
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != remain {
-			t.Errorf("Read() returns %d, want %d", n, remain)
-		}
-		if !bytes.Equal(expected[:remain], data[readLength:]) {
-			t.Errorf("Read() returns %d, want %d", len(expected[:remain]), len(data[readLength:]))
+			remain := writeLength - readLength
+			n, err = io.ReadFull(m, result[:remain])
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != remain {
+				t.Errorf("unexpected result: want %v, got %v", remain, n)
+			}
+			if !bytes.Equal(result[:remain], expectedResult[readLength:]) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult[readLength:]), len(result[:remain]))
+			}
 		}
 	})
 
 	t.Run("在读取位置之前写入", func(t *testing.T) {
-		m := &iu.SegmentManager{}
+		for i := 0; i < 100; i++ {
+			m := &iu.SegmentManager{}
 
-		data := []byte("hello world")
-		n, err := m.WriteAt(data, 0)
-		if err != nil {
-			t.Errorf("WriteAt() error %v", err)
-		}
-		if n != len(data) {
-			t.Errorf("WriteAt() returns %d, want %d", n, len(data))
-		}
+			expectedResult := []byte("hello world")
+			n, err := m.WriteAt(expectedResult, 0)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), n)
+			}
 
-		expected := make([]byte, len(data)/2)
-		n, err = io.ReadFull(m, expected)
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != len(expected) {
-			t.Errorf("Read() returns %d, want %d", n, len(expected))
-		}
-		if !bytes.Equal(expected, data[:len(data)/2]) {
-			t.Errorf("Read() returns %d, want %d", len(expected), len(data[:len(data)/2]))
-		}
+			result := make([]byte, len(expectedResult)/2)
+			n, err = io.ReadFull(m, result)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", len(result), n)
+			}
+			if !bytes.Equal(result, expectedResult[:len(expectedResult)/2]) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult[:len(expectedResult)/2]), len(result))
+			}
 
-		n, err = m.WriteAt(data, 1)
-		if err != nil {
-			t.Errorf("WriteAt() error %v", err)
-		}
-		if n != len(data) {
-			t.Errorf("WriteAt() returns %d, want %d", n, len(data))
-		}
+			n, err = m.WriteAt(expectedResult, 1)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), n)
+			}
 
-		n, err = io.ReadFull(m, expected)
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != len(expected) {
-			t.Errorf("Read() returns %d, want %d", n, len(expected))
-		}
-		if !bytes.Equal(expected, []byte("o wor")) {
-			t.Errorf("Read() returns %s, want %s", expected, "o wor")
-		}
+			n, err = io.ReadFull(m, result)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", len(result), n)
+			}
+			if !bytes.Equal(result, []byte("o wor")) {
+				t.Errorf("unexpected result: want o wor, got %v", result)
+			}
 
-		n, err = io.ReadFull(m, expected[:2])
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != 2 {
-			t.Errorf("Read() returns %d, want %d", n, 2)
-		}
-		if !bytes.Equal(expected[:n], []byte("ld")) {
-			t.Errorf("Read() returns %s, want %s", expected, "ld")
-		}
+			n, err = io.ReadFull(m, result[:2])
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != 2 {
+				t.Errorf("unexpected result: want 2, got %v", n)
+			}
+			if !bytes.Equal(result[:n], []byte("ld")) {
+				t.Errorf("unexpected result: want ld, got %v", result)
+			}
 
-		m.Discard()
+			m.Discard()
+		}
 	})
 
 	t.Run("跨多个段读取", func(t *testing.T) {
-		m := &iu.SegmentManager{}
+		for i := 0; i < 100; i++ {
+			m := &iu.SegmentManager{}
 
-		data := make([]byte, iu.SegmentLength*3+40)
-		for i := range data {
-			data[i] = byte(rand.Int31n(1<<8 - 1))
-		}
+			expectedResult := make([]byte, iu.SegmentLength*3+40)
+			for i := range expectedResult {
+				expectedResult[i] = byte(rand.Int31n(1<<8 - 1))
+			}
 
-		n, err := m.WriteAt(data, 0)
-		if err != nil {
-			t.Errorf("WriteAt() error %v", err)
-		}
-		if n != len(data) {
-			t.Errorf("WriteAt() returns %d, want %d", n, len(data))
-		}
+			n, err := m.WriteAt(expectedResult, 0)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", n, len(expectedResult))
+			}
 
-		expected := make([]byte, iu.SegmentLength+10)
-		n, err = io.ReadFull(m, expected)
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != len(expected) {
-			t.Errorf("Read() returns %d, want %d", n, len(expected))
-		}
-		if !bytes.Equal(expected, data[:n]) {
-			t.Errorf("Read() returns %d, want %d", len(expected), len(data[:n]))
-		}
+			result := make([]byte, iu.SegmentLength+10)
+			n, err = io.ReadFull(m, result)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", n, len(result))
+			}
+			if !bytes.Equal(result, expectedResult[:n]) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult[:n]), len(result))
+			}
 
-		n, err = io.ReadFull(m, expected)
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != len(expected) {
-			t.Errorf("Read() returns %d, want %d", n, len(expected))
-		}
-		if !bytes.Equal(expected, data[n:n*2]) {
-			t.Errorf("Read() returns %d, want %d", len(expected), len(data[n:n*2]))
-		}
+			n, err = io.ReadFull(m, result)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", n, len(result))
+			}
+			if !bytes.Equal(result, expectedResult[n:n*2]) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult[n:n*2]), len(result))
+			}
 
-		n, err = io.ReadFull(m, expected)
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != len(expected) {
-			t.Errorf("Read() returns %d, want %d", n, len(expected))
-		}
-		if !bytes.Equal(expected, data[n*2:n*3]) {
-			t.Errorf("Read() returns %d, want %d", len(expected), len(data[n*2:n*3]))
-		}
+			n, err = io.ReadFull(m, result)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", n, len(result))
+			}
+			if !bytes.Equal(result, expectedResult[n*2:n*3]) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult[n*2:n*3]), len(result))
+			}
 
-		n, err = io.ReadFull(m, expected[:10])
-		if err != nil {
-			t.Errorf("Read() error %v", err)
-		}
-		if n != 10 {
-			t.Errorf("Read() returns %d, want %d", n, 10)
-		}
-		if !bytes.Equal(expected[:n], data[len(data)-10:]) {
-			t.Errorf("Read() returns %d, want %d", len(expected[:n]), len(data[len(data)-10:]))
-		}
+			n, err = io.ReadFull(m, result[:10])
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != 10 {
+				t.Errorf("unexpected result: want 10, got %v", n)
+			}
+			if !bytes.Equal(result[:n], expectedResult[len(expectedResult)-10:]) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult[len(expectedResult)-10:]), len(result[:n]))
+			}
 
-		m.Discard()
+			m.Discard()
+		}
 	})
 
 	t.Run("随机写入，每个位置只写一次", func(t *testing.T) {
-		for i := 0; i < 10; i++ {
-			data := make([]byte, 1024*1024*(rand.Intn(150)+1)+10)
-			for i := range data {
-				data[i] = byte(rand.Int31n(1<<8 - 1))
+		for i := 0; i < 100; i++ {
+			expectedResult := make([]byte, 1024*1024*2*(rand.Intn(5)+1)+10)
+			for i := range expectedResult {
+				expectedResult[i] = byte(rand.Int31n(1<<8 - 1))
 			}
 
-			type part struct {
-				offset int
-				data   []byte
-			}
-			parts := make([]*part, 0, 10)
-			var fn func(arr []byte, offset int)
-			fn = func(arr []byte, offset int) {
-				if len(arr) <= 0 {
-					return
-				}
-				start := len(arr) / (rand.Intn(3) + 1)
-				length := len(arr[start:]) / (rand.Intn(3) + 1)
-				if length > 0 {
-					parts = append(parts, &part{offset + start, arr[start : start+length]})
-				}
-				fn(arr[:start], offset)
-				fn(arr[start+length:], start+length+offset)
-			}
-			fn(data, 0)
+			parts := Split(expectedResult)
 
 			m := &iu.SegmentManager{}
 			go func() {
 				for _, v := range parts {
-					n, err := m.WriteAt(v.data, int64(v.offset))
+					data := expectedResult[v.Offset:v.End]
+					n, err := m.WriteAt(data, int64(v.Offset))
 					if err != nil {
-						t.Errorf("WriteAt() error %v", err)
+						t.Errorf("unexpected error: want nil, got %v", err)
 					}
-					if n != len(v.data) {
-						t.Errorf("WriteAt() returns %d, want %d", n, len(v.data))
+					if n != len(data) {
+						t.Errorf("unexpected result: want %v, got %v", len(data), n)
 					}
 				}
 			}()
 
-			expected := make([]byte, len(data))
-			n, err := io.ReadFull(m, expected)
+			result := make([]byte, len(expectedResult))
+			n, err := io.ReadFull(m, result)
 			if err != nil {
-				t.Errorf("Read() error %v", err)
+				t.Errorf("unexpected error: want nil, got %v", err)
 			}
-			if n != len(expected) {
-				t.Errorf("Read() returns %d, want %d", n, len(expected))
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", n, len(result))
 			}
-			if !bytes.Equal(expected, data) {
-				t.Errorf("Read() returns %d, want %d", len(data), len(expected))
+			if !bytes.Equal(result, expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), len(result))
 			}
 
 			m.Discard()
+
+			expectedResult = nil
+			result = nil
+			parts = nil
+			runtime.GC()
 		}
 	})
 
 	t.Run("随机写入，同一个位置可能多次写入", func(t *testing.T) {
-		for i := 0; i < 10; i++ {
-			data := make([]byte, 1024*1024*(rand.Intn(150)+1)+10)
-			for i := range data {
-				data[i] = byte(rand.Int31n(1<<8 - 1))
+		for i := 0; i < 100; i++ {
+			expectedResult := make([]byte, 1024*1024*2*(rand.Intn(5)+1)+10)
+			for i := range expectedResult {
+				expectedResult[i] = byte(rand.Int31n(1<<8 - 1))
 			}
 
-			type part struct {
-				offset int
-				data   []byte
-			}
-			parts := make([]*part, 0, 10)
-			var fn func(arr []byte, offset int)
-			fn = func(arr []byte, offset int) {
-				if len(arr) <= 0 {
-					return
-				}
-				start := len(arr) / (rand.Intn(3) + 1)
-				length := len(arr[start:]) / (rand.Intn(3) + 1)
-				if length > 0 {
-					parts = append(parts, &part{offset + start, arr[start : start+length]})
-				}
-				fn(arr[:start], offset)
-				fn(arr[start+length:], start+length+offset)
-			}
-			fn(data, 0)
-			length := len(data) / (rand.Intn(3) + 1)
-			offset := rand.Intn(max(len(data)-length, 1))
-			data2 := data[offset : offset+length]
-			fn(data2, offset)
+			parts := Split(expectedResult)
+			offset := rand.Intn(len(expectedResult))
+			parts2 := Split(expectedResult[offset:])
 
 			m := &iu.SegmentManager{}
+			wg := &sync.WaitGroup{}
+			wg.Add(1)
 			go func() {
-				for _, v := range parts {
-					n, err := m.WriteAt(v.data, int64(v.offset))
+				defer wg.Done()
+				for _, v := range parts2 {
+					data := expectedResult[offset:][v.Offset:v.End]
+					n, err := m.WriteAt(data, int64(offset+v.Offset))
 					if err != nil {
-						t.Errorf("WriteAt() error %v", err)
+						t.Errorf("unexpected error: want nil, got %v", err)
 					}
-					if n != len(v.data) {
-						t.Errorf("WriteAt() returns %d, want %d", n, len(v.data))
+					if n != len(data) {
+						t.Errorf("unexpected result: want %v, got %v", len(data), n)
+					}
+				}
+				for _, v := range parts {
+					data := expectedResult[v.Offset:v.End]
+					n, err := m.WriteAt(data, int64(v.Offset))
+					if err != nil {
+						t.Errorf("unexpected error: want nil, got %v", err)
+					}
+					if n != len(data) {
+						t.Errorf("unexpected result: want %v, got %v", len(data), n)
 					}
 				}
 			}()
 
-			expected := make([]byte, len(data))
-			n, err := io.ReadFull(m, expected)
+			result := make([]byte, len(expectedResult))
+			n, err := io.ReadFull(m, result)
 			if err != nil {
-				t.Errorf("Read() error %v", err)
+				t.Errorf("unexpected error: want nil, got %v", err)
 			}
-			if n != len(expected) {
-				t.Errorf("Read() returns %d, want %d", n, len(expected))
+			if n != len(result) {
+				t.Errorf("unexpected result: want %v, got %v", n, len(result))
 			}
-			if !bytes.Equal(expected, data) {
-				t.Errorf("Read() returns %d, want %d", len(data), len(expected))
+			if !bytes.Equal(result, expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), len(result))
 			}
 
 			m.Discard()
+
+			wg.Wait()
+			expectedResult = nil
+			result = nil
+			parts = nil
+			parts2 = nil
+			runtime.GC()
 		}
 	})
 }

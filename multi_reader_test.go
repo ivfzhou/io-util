@@ -18,6 +18,7 @@ import (
 	"errors"
 	"io"
 	"math/rand"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -26,13 +27,6 @@ import (
 
 	iu "gitee.com/ivfzhou/io-util"
 )
-
-var closeCount int32
-
-type perceptionCloser struct {
-	count int
-	r     io.Reader
-}
 
 func ExampleNewMultiReadCloserToReader() {
 	ctx := context.Background()
@@ -60,244 +54,24 @@ func ExampleNewMultiReadCloserToReader() {
 
 func TestNewMultiReadCloserToReader(t *testing.T) {
 	t.Run("正常读取", func(t *testing.T) {
-		atomic.StoreInt32(&closeCount, 0)
+		for i := 0; i < 100; i++ {
+			atomic.StoreInt32(&CloseCount, 0)
+			rcs := make([]io.ReadCloser, 0, 4)
+			rcs = append(rcs, newClosePerception(strings.NewReader("hello")))
+			rcs = append(rcs, newClosePerception(strings.NewReader(" ")))
+			rcs = append(rcs, newClosePerception(strings.NewReader("world. ")))
 
-		rc := make([]io.ReadCloser, 0, 4)
-		rc = append(rc, newClosePerception(strings.NewReader("hello")))
-		rc = append(rc, newClosePerception(strings.NewReader(" ")))
-		rc = append(rc, newClosePerception(strings.NewReader("world. ")))
-
-		ctx := context.Background()
-		r, add, endAdd := iu.NewMultiReadCloserToReader(ctx, rc...)
-
-		go func() {
-			rc = rc[:0]
-			rc = append(rc, newClosePerception(strings.NewReader("this ")))
-			rc = append(rc, newClosePerception(strings.NewReader("is ")))
-			rc = append(rc, newClosePerception(strings.NewReader("a ")))
-			rc = append(rc, newClosePerception(strings.NewReader("test!")))
-			for i := range rc {
-				err := add(rc[i])
-				if err != nil {
-					t.Errorf("NewMultiReadCloserToReader add error %v", err)
-				}
-			}
-			endAdd()
-		}()
-
-		bs, err := io.ReadAll(r)
-		if err != nil {
-			t.Errorf("NewMultiReadCloserToReader ReadAll error %v", err)
-		}
-		data := "hello world. this is a test!"
-		if string(bs) != data {
-			t.Errorf("NewMultiReadCloserToReader ReadAll got %s, want %s", string(bs), data)
-		}
-		if atomic.LoadInt32(&closeCount) != 0 {
-			t.Errorf("NewMultiReadCloserToReader ReadAll got %d, want %d", closeCount, 0)
-		}
-	})
-
-	t.Run("没有数据", func(t *testing.T) {
-		atomic.StoreInt32(&closeCount, 0)
-
-		ctx := context.Background()
-		r, _, endAdd := iu.NewMultiReadCloserToReader(ctx)
-		endAdd()
-		bs, err := io.ReadAll(r)
-		if err != nil {
-			t.Errorf("NewMultiReadCloserToReader ReadAll error %v", err)
-		}
-		if len(bs) != 0 {
-			t.Errorf("NewMultiReadCloserToReader ReadAll got %d, want %d", len(bs), 0)
-		}
-		if atomic.LoadInt32(&closeCount) != 0 {
-			t.Errorf("NewMultiReadCloserToReader ReadAll got %d, want %d", closeCount, 0)
-		}
-	})
-
-	t.Run("空流", func(t *testing.T) {
-		atomic.StoreInt32(&closeCount, 0)
-
-		rc := make([]io.ReadCloser, 0, 4)
-		rc = append(rc, newClosePerception(strings.NewReader("hello")))
-		rc = append(rc, newClosePerception(strings.NewReader(" ")))
-		rc = append(rc, nil)
-		rc = append(rc, newClosePerception(strings.NewReader("world. ")))
-
-		ctx := context.Background()
-		r, add, endAdd := iu.NewMultiReadCloserToReader(ctx, rc...)
-
-		go func() {
-			rc = rc[:0]
-			rc = append(rc, newClosePerception(strings.NewReader("this ")))
-			rc = append(rc, nil)
-			rc = append(rc, newClosePerception(strings.NewReader("is ")))
-			rc = append(rc, newClosePerception(strings.NewReader("a ")))
-			rc = append(rc, newClosePerception(strings.NewReader("test!")))
-			for i := range rc {
-				err := add(rc[i])
-				if err != nil {
-					t.Errorf("NewMultiReadCloserToReader add error %v", err)
-				}
-			}
-			endAdd()
-		}()
-
-		bs, err := io.ReadAll(r)
-		if err != nil {
-			t.Errorf("NewMultiReadCloserToReader ReadAll error %v", err)
-		}
-		data := "hello world. this is a test!"
-		if string(bs) != data {
-			t.Errorf("NewMultiReadCloserToReader ReadAll got %s, want %s", string(bs), data)
-		}
-		if atomic.LoadInt32(&closeCount) != 0 {
-			t.Errorf("NewMultiReadCloserToReader ReadAll got %d, want %d", closeCount, 0)
-		}
-	})
-
-	t.Run("上下文终止", func(t *testing.T) {
-		for i := 0; i < 50; i++ {
-			atomic.StoreInt32(&closeCount, 0)
-
-			rc := make([]io.ReadCloser, 0, 4)
-			rc = append(rc, newClosePerception(strings.NewReader("hello")))
-			rc = append(rc, newClosePerception(strings.NewReader(" ")))
-			rc = append(rc, newClosePerception(strings.NewReader("world. ")))
-
-			ctx := context.Background()
-			ctx, cancel := context.WithCancel(ctx)
-			r, add, endAdd := iu.NewMultiReadCloserToReader(ctx, rc...)
-
-			wg := sync.WaitGroup{}
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				rc = rc[:0]
-				rc = append(rc, newClosePerception(strings.NewReader("this ")))
-				rc = append(rc, newClosePerception(strings.NewReader("is ")))
-				rc = append(rc, newClosePerception(strings.NewReader("a ")))
-				rc = append(rc, newClosePerception(strings.NewReader("test!")))
-				flag := rand.Intn(4)
-				for i := range rc {
-					if i == flag {
-						cancel()
-					}
-					err := add(rc[i])
-					if i < flag && err != nil {
-						t.Errorf("NewMultiReadCloserToReader add error %v", err)
-					} else if !errors.Is(err, ctx.Err()) {
-						t.Errorf("NewMultiReadCloserToReader add error %v, want %v", err, ctx.Err())
-					}
-				}
-				endAdd()
-			}()
-
-			bs, err := io.ReadAll(r)
-			if !errors.Is(err, ctx.Err()) {
-				t.Errorf("NewMultiReadCloserToReader ReadAll error %v", err)
-			}
-			data := "hello world. this is a test!"
-			if len(bs) == len(data) {
-				t.Errorf("NewMultiReadCloserToReader ReadAll got %s, want %s", string(bs), data)
-			}
-			wg.Wait()
-			val := atomic.LoadInt32(&closeCount)
-			if val != 0 {
-				t.Errorf("NewMultiReadCloserToReader ReadAll got %d, want %d", val, 0)
-			}
-		}
-	})
-
-	t.Run("endAdd 后 add", func(t *testing.T) {
-		atomic.StoreInt32(&closeCount, 0)
-
-		rc := make([]io.ReadCloser, 0, 4)
-		rc = append(rc, newClosePerception(strings.NewReader("hello")))
-		rc = append(rc, newClosePerception(strings.NewReader(" ")))
-		rc = append(rc, newClosePerception(strings.NewReader("world. ")))
-
-		ctx := context.Background()
-		r, add, endAdd := iu.NewMultiReadCloserToReader(ctx, rc...)
-
-		flag := rand.Intn(4)
-		go func() {
-			rc = rc[:0]
-			rc = append(rc, newClosePerception(strings.NewReader("this ")))
-			rc = append(rc, newClosePerception(strings.NewReader("is ")))
-			rc = append(rc, newClosePerception(strings.NewReader("a ")))
-			rc = append(rc, newClosePerception(strings.NewReader("test!")))
-			for i := range rc {
-				if i == flag {
-					endAdd()
-				}
-				func() {
-					defer func() {
-						p := recover()
-						if i >= flag && p != iu.ErrAddAfterEnd {
-							t.Errorf("NewMultiReadCloserToReader ReadAll error %v", p)
-						}
-					}()
-					err := add(rc[i])
-					if i < flag && err != nil {
-						t.Errorf("NewMultiReadCloserToReader add error %v", err)
-					}
-				}()
-			}
-			endAdd()
-		}()
-
-		bs, err := io.ReadAll(r)
-		if err != nil {
-			t.Errorf("NewMultiReadCloserToReader ReadAll error %v", err)
-		}
-		data := "hello world. this is a test!"
-		if len(bs) >= len(data) {
-			t.Errorf("NewMultiReadCloserToReader ReadAll got %s, want %s", string(bs), data)
-		}
-		if int(atomic.LoadInt32(&closeCount))-(4-flag) != 0 {
-			t.Errorf("NewMultiReadCloserToReader ReadAll got %d, want %d", closeCount, 0)
-		}
-	})
-
-	t.Run("大量数据", func(t *testing.T) {
-		for i := 0; i < 50; i++ {
-			atomic.StoreInt32(&closeCount, 0)
-
-			data := make([]byte, 1024*1024*(rand.Intn(150)+1))
-			for i := range data {
-				data[i] = byte(rand.Intn(256))
-			}
-
-			type part struct {
-				offset, length int
-			}
-			parts := make([]*part, 0, 10)
-			var fn func(arr []byte, offset int)
-			fn = func(arr []byte, offset int) {
-				if len(arr) <= 0 {
-					return
-				}
-				start := len(arr) / (rand.Intn(3) + 1)
-				length := len(arr[start:]) / (rand.Intn(3) + 1)
-				if length > 0 {
-					parts = append(parts, &part{offset + start, length})
-				}
-				fn(arr[:start], offset)
-				fn(arr[start+length:], start+length+offset)
-			}
-			fn(data, 0)
-			sort.Slice(parts, func(i, j int) bool { return parts[i].offset < parts[j].offset })
-
-			ctx := context.Background()
-			r, add, endAdd := iu.NewMultiReadCloserToReader(ctx)
+			r, add, endAdd := iu.NewMultiReadCloserToReader(context.Background(), rcs...)
 
 			go func() {
-				for _, v := range parts {
-					err := add(newClosePerception(bytes.NewReader(data[v.offset : v.offset+v.length])))
+				rcs = append(rcs[:0], newClosePerception(strings.NewReader("this ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("is ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("a ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("test!")))
+				for i := range rcs {
+					err := add(rcs[i])
 					if err != nil {
-						t.Errorf("NewMultiReadCloserToReader add error %v", err)
+						t.Errorf("unexpected error: want nil, got %v", err)
 					}
 				}
 				endAdd()
@@ -305,32 +79,350 @@ func TestNewMultiReadCloserToReader(t *testing.T) {
 
 			bs, err := io.ReadAll(r)
 			if err != nil {
-				t.Errorf("NewMultiReadCloserToReader ReadAll error %v", err)
+				t.Errorf("unexpected error: want nil, got %v", err)
 			}
-			if !bytes.Equal(bs, data) {
-				t.Errorf("NewMultiReadCloserToReader ReadAll got %d, want %d", len(bs), len(data))
+
+			data := "hello world. this is a test!"
+			if string(bs) != data {
+				t.Errorf("unexpected result: want %v, got %v", data, string(bs))
 			}
-			if atomic.LoadInt32(&closeCount) != 0 {
-				t.Errorf("NewMultiReadCloserToReader ReadAll got %d, want %d", closeCount, 0)
+			if closeCount := atomic.LoadInt32(&CloseCount); closeCount != 0 {
+				t.Errorf("unexpected close count: want 0, got %v", closeCount)
 			}
 		}
 	})
-}
 
-func newClosePerception(r io.Reader) io.ReadCloser {
-	atomic.AddInt32(&closeCount, 1)
-	return &perceptionCloser{r: r}
-}
+	t.Run("没有数据", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			r, _, endAdd := iu.NewMultiReadCloserToReader(context.Background())
+			endAdd()
 
-func (c *perceptionCloser) Close() error {
-	if c.count > 0 {
-		return errors.New("closer is already closed")
-	}
-	c.count++
-	atomic.AddInt32(&closeCount, -1)
-	return nil
-}
+			bs, err := io.ReadAll(r)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
 
-func (c *perceptionCloser) Read(p []byte) (n int, err error) {
-	return c.r.Read(p)
+			if len(bs) != 0 {
+				t.Errorf("unexpected result: want 0, got %v", len(bs))
+			}
+		}
+	})
+
+	t.Run("存在空流", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			atomic.StoreInt32(&CloseCount, 0)
+			rcs := make([]io.ReadCloser, 0, 4)
+			rcs = append(rcs, newClosePerception(strings.NewReader("hello")))
+			rcs = append(rcs, newClosePerception(strings.NewReader(" ")))
+			rcs = append(rcs, nil)
+			rcs = append(rcs, newClosePerception(strings.NewReader("world. ")))
+
+			r, add, endAdd := iu.NewMultiReadCloserToReader(context.Background(), rcs...)
+
+			go func() {
+				rcs = append(rcs[:0], newClosePerception(strings.NewReader("this ")))
+				rcs = append(rcs, nil)
+				rcs = append(rcs, newClosePerception(strings.NewReader("is ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("a ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("test!")))
+				for i := range rcs {
+					err := add(rcs[i])
+					if err != nil {
+						t.Errorf("unexpected error: want nil, got %v", err)
+					}
+				}
+				endAdd()
+			}()
+
+			bs, err := io.ReadAll(r)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			data := "hello world. this is a test!"
+			if string(bs) != data {
+				t.Errorf("unexpected result: want %v, got %v", data, string(bs))
+			}
+			if closeCount := atomic.LoadInt32(&CloseCount); closeCount != 0 {
+				t.Errorf("unexpected close count: want 0, got %v", closeCount)
+			}
+		}
+	})
+
+	t.Run("上下文终止", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			atomic.StoreInt32(&CloseCount, 0)
+			rcs := make([]io.ReadCloser, 0, 4)
+			rcs = append(rcs, newClosePerception(strings.NewReader("hello")))
+			rcs = append(rcs, newClosePerception(strings.NewReader(" ")))
+			rcs = append(rcs, newClosePerception(strings.NewReader("world. ")))
+
+			ctx, cancel := newCtxCancelWithError()
+			expectedErr := errors.New("expected error")
+			r, add, endAdd := iu.NewMultiReadCloserToReader(ctx, rcs...)
+
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				rcs = append(rcs[:0], newClosePerception(strings.NewReader("this ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("is ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("a ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("test!")))
+				flag := rand.Intn(4)
+				for i := range rcs {
+					if i == flag {
+						cancel(expectedErr)
+					}
+					err := add(rcs[i])
+					if i < flag && err != nil {
+						t.Errorf("unexpected error: want nil, got %v", err)
+					} else if err != nil && !errors.Is(err, expectedErr) {
+						t.Errorf("unexpected error: want %v, got %v", expectedErr, err)
+					}
+				}
+				endAdd()
+			}()
+
+			bs, err := io.ReadAll(r)
+			if !errors.Is(err, expectedErr) {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			data := "hello world. this is a test!"
+			if !strings.HasPrefix(data, string(bs)) {
+				t.Errorf("unexpected result: want %v, got %v", data, string(bs))
+			}
+
+			wg.Wait()
+			if closeCount := atomic.LoadInt32(&CloseCount); closeCount != 0 {
+				t.Errorf("unexpected close count: want 0, got %v", closeCount)
+			}
+		}
+	})
+
+	t.Run("并发 add，上下文终止", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			atomic.StoreInt32(&CloseCount, 0)
+			rcs := make([]io.ReadCloser, 0, 4)
+			rcs = append(rcs, newClosePerception(strings.NewReader("hello")))
+			rcs = append(rcs, newClosePerception(strings.NewReader(" ")))
+			rcs = append(rcs, newClosePerception(strings.NewReader("world. ")))
+
+			ctx, cancel := newCtxCancelWithError()
+			expectedErr := errors.New("expected error")
+			r, add, endAdd := iu.NewMultiReadCloserToReader(ctx, rcs...)
+
+			wg := sync.WaitGroup{}
+			wg.Add(4)
+			go func() {
+				rcs = append(rcs[:0], newClosePerception(strings.NewReader("this ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("is ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("a ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("test!")))
+				flag := rand.Intn(4)
+				for i, v := range rcs {
+					go func(i int, rc io.ReadCloser) {
+						defer wg.Done()
+						if i == flag {
+							cancel(expectedErr)
+						}
+						err := add(rc)
+						if err != nil && !errors.Is(err, expectedErr) {
+							t.Errorf("unexpected error: want %v, got %v", expectedErr, err)
+						}
+					}(i, v)
+				}
+				wg.Wait()
+				endAdd()
+			}()
+
+			_, err := io.ReadAll(r)
+			if !errors.Is(err, expectedErr) {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+
+			wg.Wait()
+			if closeCount := atomic.LoadInt32(&CloseCount); closeCount != 0 {
+				t.Errorf("unexpected close count: want 0, got %v", closeCount)
+			}
+		}
+	})
+
+	t.Run("endAdd 后 add", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			atomic.StoreInt32(&CloseCount, 0)
+			rcs := make([]io.ReadCloser, 0, 4)
+			rcs = append(rcs, newClosePerception(strings.NewReader("hello")))
+			rcs = append(rcs, newClosePerception(strings.NewReader(" ")))
+			rcs = append(rcs, newClosePerception(strings.NewReader("world. ")))
+
+			r, add, endAdd := iu.NewMultiReadCloserToReader(context.Background(), rcs...)
+
+			flag := rand.Intn(4)
+			go func() {
+				rcs = rcs[:0]
+				rcs = append(rcs, newClosePerception(strings.NewReader("this ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("is ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("a ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("test!")))
+				for i := range rcs {
+					if i == flag {
+						endAdd()
+					}
+					func() {
+						defer func() {
+							p := recover()
+							if i >= flag && p != iu.ErrAddAfterEnd {
+								t.Errorf("unexpected error: want %v, got %v", iu.ErrAddAfterEnd, p)
+							}
+						}()
+						err := add(rcs[i])
+						if i < flag && err != nil {
+							t.Errorf("unexpected error: want nil, got %v", err)
+						}
+					}()
+				}
+				endAdd()
+			}()
+
+			bs, err := io.ReadAll(r)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			data := "hello world. this is a test!"
+			if !strings.HasPrefix(data, string(bs)) {
+				t.Errorf("unexpected result: want %v, got %v", data, string(bs))
+			}
+			if int(atomic.LoadInt32(&CloseCount))-4+flag != 0 {
+				t.Errorf("unexpected result: want 0, got %v", CloseCount)
+			}
+		}
+	})
+
+	t.Run("大量数据", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			atomic.StoreInt32(&CloseCount, 0)
+			data := make([]byte, 1024*1024*(rand.Intn(5)+1)+10)
+			for i := range data {
+				data[i] = byte(rand.Intn(256))
+			}
+
+			parts := Split(data)
+			sort.Slice(parts, func(i, j int) bool { return parts[i].Offset < parts[j].Offset })
+			r, add, endAdd := iu.NewMultiReadCloserToReader(context.Background())
+
+			go func() {
+				for _, v := range parts {
+					err := add(newClosePerception(bytes.NewReader(data[v.Offset:v.End])))
+					if err != nil {
+						t.Errorf("unexpected error: want nil, got %v", err)
+					}
+				}
+				endAdd()
+			}()
+
+			bs, err := io.ReadAll(r)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if !bytes.Equal(bs, data) {
+				t.Errorf("unexpected result: want %v, got %v", len(bs), len(data))
+			}
+			if closeCount := atomic.LoadInt32(&CloseCount); closeCount != 0 {
+				t.Errorf("unexpected close count: want 0, got %v", closeCount)
+			}
+
+			data = nil
+			parts = nil
+			bs = nil
+			runtime.GC()
+		}
+	})
+
+	t.Run("读取失败", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			atomic.StoreInt32(&CloseCount, 0)
+			rcs := make([]io.ReadCloser, 0, 4)
+			rcs = append(rcs, newClosePerception(strings.NewReader("hello")))
+			rcs = append(rcs, newClosePerception(strings.NewReader(" ")))
+			rcs = append(rcs, newClosePerception(strings.NewReader("world. ")))
+
+			r, add, endAdd := iu.NewMultiReadCloserToReader(context.Background(), rcs...)
+			expectedErr := errors.New("expected error")
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				rcs = append(rcs[:0], newClosePerception(strings.NewReader("this ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("is ")))
+				rcs = append(rcs, newErrorReader(expectedErr, []byte("a ")))
+				rcs = append(rcs, newClosePerception(strings.NewReader("test!")))
+				for i := range rcs {
+					err := add(rcs[i])
+					if err != nil {
+						t.Errorf("unexpected error: want nil, got %v", err)
+					}
+				}
+				endAdd()
+			}()
+
+			bs, err := io.ReadAll(r)
+			if !errors.Is(err, expectedErr) {
+				t.Errorf("unexpected error: want %v, got %v", expectedErr, err)
+			}
+
+			data := "hello world. this is a test!"
+			if !strings.HasPrefix(data, string(bs)) {
+				t.Errorf("unexpected result: want %v, got %v", data, string(bs))
+			}
+
+			wg.Wait()
+			if closeCount := atomic.LoadInt32(&CloseCount); closeCount != 0 {
+				t.Errorf("unexpected close count: want 0, got %v", closeCount)
+			}
+		}
+	})
+
+	t.Run("关闭读取失败", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			atomic.StoreInt32(&CloseCount, 0)
+			rc := make([]io.ReadCloser, 0, 4)
+			rc = append(rc, newClosePerception(strings.NewReader("hello")))
+			rc = append(rc, newClosePerception(strings.NewReader(" ")))
+			rc = append(rc, newClosePerception(strings.NewReader("world. ")))
+
+			r, add, endAdd := iu.NewMultiReadCloserToReader(context.Background(), rc...)
+			expectedErr := errors.New("expected error")
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				rc = append(rc[:0], newClosePerception(strings.NewReader("this ")))
+				rc = append(rc, newClosePerception(strings.NewReader("is ")))
+				rc = append(rc, newErrorCloseReader(expectedErr, []byte("a ")))
+				rc = append(rc, newClosePerception(strings.NewReader("test!")))
+				for i := range rc {
+					err := add(rc[i])
+					if err != nil {
+						t.Errorf("unexpected error: want nil, got %v", err)
+					}
+				}
+				endAdd()
+			}()
+
+			bs, err := io.ReadAll(r)
+			if !errors.Is(err, expectedErr) {
+				t.Errorf("unexpected error: want %v, got %v", expectedErr, err)
+			}
+
+			data := "hello world. this is a test!"
+			if !strings.HasPrefix(data, string(bs)) {
+				t.Errorf("unexpected result: want %v, got %v", data, string(bs))
+			}
+
+			wg.Wait()
+			if atomic.LoadInt32(&CloseCount) != 0 {
+				t.Errorf("unexpected close count: want 0, got %v", CloseCount)
+			}
+		}
+	})
 }

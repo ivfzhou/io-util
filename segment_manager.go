@@ -15,7 +15,7 @@ package io_util
 import "sync"
 
 // SegmentLength 一个段占用的字节数。
-const SegmentLength = 1000
+const SegmentLength = 1024 * 4
 
 // 缓冲段。
 var segmentPool = sync.Pool{New: func() any { return &segment{} }}
@@ -34,6 +34,7 @@ type segment struct {
 	data   [SegmentLength]byte
 }
 
+// WriteAt 写入数据。
 func (m *SegmentManager) WriteAt(bs []byte, offset int64) (int, error) {
 	length := len(bs)
 
@@ -85,6 +86,7 @@ func (m *SegmentManager) WriteAt(bs []byte, offset int64) (int, error) {
 	return length, nil
 }
 
+// Read 读取数据。
 func (m *SegmentManager) Read(bs []byte) (int, error) {
 	// 没有段可读就返回函数。
 	if len(bs) <= 0 {
@@ -107,7 +109,7 @@ func (m *SegmentManager) Read(bs []byte) (int, error) {
 	index := m.readPosition / SegmentLength
 	sg := m.segments[index]
 
-	// 读取数据到字节数组 bs。
+	// 读取数据到字节数组 Data。
 	off := m.readPosition % SegmentLength
 	canReadLength := int(min(int64(getLen), int64(SegmentLength-off)))
 	copy(bs, sg.data[off:off+canReadLength])

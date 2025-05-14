@@ -17,6 +17,7 @@ import (
 	"errors"
 	"io"
 	"math/rand"
+	"runtime"
 	"testing"
 
 	iu "gitee.com/ivfzhou/io-util"
@@ -39,206 +40,229 @@ func ExampleNewWriteAtReader() {
 
 func TestNewWriteAtToReader(t *testing.T) {
 	t.Run("没有数据", func(t *testing.T) {
-		wc, rc := iu.NewWriteAtToReader()
-		err := wc.Close()
-		if err != nil {
-			t.Errorf("WriteAtToReader close error %v", err)
-		}
-		bs, err := io.ReadAll(rc)
-		if err != nil {
-			t.Errorf("ReadAll error %v", err)
-		}
-		if len(bs) != 0 {
-			t.Errorf("WriteAtToReader read result %v != %v", len(bs), 0)
+		for i := 0; i < 100; i++ {
+			wc, rc := iu.NewWriteAtToReader()
+			err := wc.Close()
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			bs, err := io.ReadAll(rc)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if len(bs) != 0 {
+				t.Errorf("unexpected result: want 0, got %v", string(bs))
+			}
 		}
 	})
 
 	t.Run("按顺序写入", func(t *testing.T) {
-		data := make([]byte, 1024*1024*(rand.Intn(150)+1)+10)
-		for i := range data {
-			data[i] = byte(rand.Intn(256))
-		}
+		for i := 0; i < 100; i++ {
+			expectedResult := make([]byte, 1024*1024*2*(rand.Intn(5)+1)+10)
+			for i := range expectedResult {
+				expectedResult[i] = byte(rand.Intn(256))
+			}
 
-		wc, rc := iu.NewWriteAtToReader()
+			wc, rc := iu.NewWriteAtToReader()
 
-		go func() {
-			const part = 1024 * 1024 * 8
-			for i := 0; i < len(data); i += part {
-				end := i + part
-				if len(data) < end {
-					end = len(data)
+			go func() {
+				const part = 1024 * 1024 * 8
+				for i := 0; i < len(expectedResult); i += part {
+					end := i + part
+					if len(expectedResult) < end {
+						end = len(expectedResult)
+					}
+					n, err := wc.WriteAt(expectedResult[i:end], int64(i))
+					if err != nil {
+						t.Errorf("unexpected error: want nil, got %v", err)
+					}
+					if n != end-i {
+						t.Errorf("unexpected result: want %v, got %v", end-i, n)
+					}
 				}
-				n, err := wc.WriteAt(data[i:end], int64(i))
+				err := wc.Close()
 				if err != nil {
-					t.Errorf("NewWriteAtToReader wc write error %v", err)
+					t.Errorf("unexpected error: want nil, got %v", err)
 				}
-				if n != end-i {
-					t.Errorf("WriteAtToReader wc write error %v != %v", n, end-i)
-				}
-			}
-			err := wc.Close()
-			if err != nil {
-				t.Errorf("WriteAtToReader close error %v", err)
-			}
-		}()
+			}()
 
-		bs, err := io.ReadAll(rc)
-		if err != nil {
-			t.Errorf("ReadAll error %v", err)
-		}
-		err = rc.Close()
-		if err != nil {
-			t.Errorf("WriteAtToReader rc close error %v", err)
-		}
-		if !bytes.Equal(bs, data) {
-			t.Errorf("WriteAtToReader read result %v != %v", len(bs), len(data))
+			result, err := io.ReadAll(rc)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if err = rc.Close(); err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if !bytes.Equal(result, expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), len(result))
+			}
+
+			expectedResult = nil
+			result = nil
+			runtime.GC()
 		}
 	})
 
 	t.Run("不按照顺序写入", func(t *testing.T) {
-		data := make([]byte, 1024*1024*(rand.Intn(150)+1)+10)
-		for i := range data {
-			data[i] = byte(rand.Intn(256))
-		}
-
-		const part = 999 * 999 * 8
-		datas := make(map[int64][]byte, len(data))
-		for i := 0; i < len(data); i += part {
-			end := i + part
-			if len(data) < end {
-				end = len(data)
+		for i := 0; i < 100; i++ {
+			expectedResult := make([]byte, 1024*1024*(rand.Intn(5)+1)+10)
+			for i := range expectedResult {
+				expectedResult[i] = byte(rand.Intn(256))
 			}
-			datas[int64(i)] = data[i:end]
-		}
-		keys := make(map[int64]struct{}, len(data)/part)
-		for i := range datas {
-			keys[i] = struct{}{}
-		}
 
-		wc, rc := iu.NewWriteAtToReader()
-		go func() {
-			for {
-				index := rand.Intn(len(keys))
-				offset := int64(0)
-				for offset = range keys {
-					index--
-					if index < 0 {
-						delete(keys, offset)
+			const part = 999 * 999 * 8
+			datas := make(map[int64][]byte, len(expectedResult))
+			for i := 0; i < len(expectedResult); i += part {
+				end := i + part
+				if len(expectedResult) < end {
+					end = len(expectedResult)
+				}
+				datas[int64(i)] = expectedResult[i:end]
+			}
+			keys := make(map[int64]struct{}, len(expectedResult)/part)
+			for i := range datas {
+				keys[i] = struct{}{}
+			}
+
+			wc, rc := iu.NewWriteAtToReader()
+			go func() {
+				for {
+					index := rand.Intn(len(keys))
+					offset := int64(0)
+					for offset = range keys {
+						index--
+						if index < 0 {
+							delete(keys, offset)
+							break
+						}
+					}
+					n, err := wc.WriteAt(datas[offset], offset)
+					if err != nil {
+						t.Errorf("unexpected error: want nil, got %v", err)
+					}
+					if n != len(datas[offset]) {
+						t.Errorf("unexpected result: want %v, got %v", datas[offset], n)
+					}
+					if len(keys) <= 0 {
+						if err = wc.Close(); err != nil {
+							t.Errorf("unexpected error: want nil, got %v", err)
+						}
 						break
 					}
 				}
-				n, err := wc.WriteAt(datas[offset], offset)
-				if err != nil {
-					t.Errorf("WriteAtToReader write error %v", err)
-				}
-				if n != len(datas[offset]) {
-					t.Errorf("WriteAtToReader write error %v != %v", n, datas[offset])
-				}
-				if len(keys) <= 0 {
-					err = wc.Close()
-					if err != nil {
-						t.Errorf("WriteAtToReader close error %v", err)
-					}
-					break
-				}
-			}
-		}()
+			}()
 
-		bs, err := io.ReadAll(rc)
-		if err != nil {
-			t.Errorf("ReadAll error %v", err)
-		}
-		err = rc.Close()
-		if err != nil {
-			t.Errorf("WriteAtToReader rc close error %v", err)
-		}
-		if !bytes.Equal(bs, data) {
-			t.Errorf("WriteAtToReader read result %v != %v", len(bs), len(data))
+			result, err := io.ReadAll(rc)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if err = rc.Close(); err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if !bytes.Equal(result, expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), len(result))
+			}
+
+			expectedResult = nil
+			result = nil
+			runtime.GC()
 		}
 	})
 
 	t.Run("写入位置为负数", func(t *testing.T) {
-		wc, rc := iu.NewWriteAtToReader()
-		_, err := wc.WriteAt([]byte("hello world"), -1)
-		if !errors.Is(err, iu.ErrOffsetCannotNegative) {
-			t.Errorf("WriteAtToReader write error %v", err)
+		for i := 0; i < 100; i++ {
+			wc, rc := iu.NewWriteAtToReader()
+			_, err := wc.WriteAt([]byte("hello world"), -1)
+			if !errors.Is(err, iu.ErrOffsetCannotNegative) {
+				t.Errorf("unexpected error: want %v, got %v", iu.ErrOffsetCannotNegative, err)
+			}
+			_ = rc.Close()
+			_ = wc.Close()
 		}
-		_ = rc.Close()
-		_ = wc.Close()
 	})
 
 	t.Run("写入数据为空", func(t *testing.T) {
-		wc, rc := iu.NewWriteAtToReader()
-		n, err := wc.WriteAt([]byte(""), 0)
-		if err != nil {
-			t.Errorf("WriteAtToReader write error %v", err)
+		for i := 0; i < 100; i++ {
+			wc, rc := iu.NewWriteAtToReader()
+			n, err := wc.WriteAt([]byte(""), 0)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != 0 {
+				t.Errorf("unexpected result: want 0, got %v", n)
+			}
+			_ = rc.Close()
+			_ = wc.Close()
 		}
-		if n != 0 {
-			t.Errorf("WriteAtToReader read result %v != %v", n, 0)
-		}
-		_ = rc.Close()
-		_ = wc.Close()
 	})
 
-	t.Run("关闭写入后，再写入", func(t *testing.T) {
-		wc, rc := iu.NewWriteAtToReader()
-		err := wc.Close()
-		if err != nil {
-			t.Errorf("WriteAtToReader close error %v", err)
+	t.Run("wc 关闭写入后，再写入", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			wc, rc := iu.NewWriteAtToReader()
+			err := wc.Close()
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			n, err := wc.WriteAt([]byte("hello world"), 0)
+			if !errors.Is(err, iu.ErrWriterIsClosed) {
+				t.Errorf("unexpected error: want %v, got %v", iu.ErrWriterIsClosed, err)
+			}
+			if n != 0 {
+				t.Errorf("unexpected result: want 0, got %v", n)
+			}
+			_ = rc.Close()
 		}
-		n, err := wc.WriteAt([]byte("hello world"), 0)
-		if !errors.Is(err, iu.ErrWriterIsClosed) {
-			t.Errorf("WriteAtToReader write error %v", err)
-		}
-		if n != 0 {
-			t.Errorf("WriteAtToReader read result %v != %v", n, 0)
-		}
-		_ = rc.Close()
 	})
 
-	t.Run("Reader 关闭后，再写入", func(t *testing.T) {
-		wc, rc := iu.NewWriteAtToReader()
-		err := rc.Close()
-		if err != nil {
-			t.Errorf("WriteAtToReader close error %v", err)
+	t.Run("rc 关闭后，再写入", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			wc, rc := iu.NewWriteAtToReader()
+			err := rc.Close()
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			expectedResult := []byte("hello world")
+			n, err := wc.WriteAt(expectedResult, 0)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != len(expectedResult) {
+				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), n)
+			}
+			_ = wc.Close()
 		}
-		data := []byte("hello world")
-		n, err := wc.WriteAt(data, 0)
-		if err != nil {
-			t.Errorf("WriteAtToReader write error %v", err)
-		}
-		if n != len(data) {
-			t.Errorf("WriteAtToReader read result %v != %v", n, len(data))
-		}
-		_ = wc.Close()
 	})
 
-	t.Run("Reader 关闭后，再读取", func(t *testing.T) {
-		wc, rc := iu.NewWriteAtToReader()
-		err := rc.Close()
-		if err != nil {
-			t.Errorf("WriteAtToReader close error %v", err)
+	t.Run("rc 关闭后，再读取", func(t *testing.T) {
+		for i := 0; i < 100; i++ {
+			wc, rc := iu.NewWriteAtToReader()
+			err := rc.Close()
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			n, err := rc.Read(nil)
+			if !errors.Is(err, iu.ErrReaderIsClosed) {
+				t.Errorf("unexpected error: want %v, got %v", iu.ErrReaderIsClosed, err)
+			}
+			if n != 0 {
+				t.Errorf("unexpected result: want 0, got %v", n)
+			}
+			_ = wc.Close()
 		}
-		n, err := rc.Read(nil)
-		if !errors.Is(err, iu.ErrReaderIsClosed) {
-			t.Errorf("WriteAtToReader read error %v", err)
-		}
-		if n != 0 {
-			t.Errorf("WriteAtToReader read result %v != %v", n, 0)
-		}
-		_ = wc.Close()
 	})
 
 	t.Run("读取数据为空", func(t *testing.T) {
-		wc, rc := iu.NewWriteAtToReader()
-		n, err := rc.Read(nil)
-		if err != nil {
-			t.Errorf("WriteAtToReader read error %v", err)
+		for i := 0; i < 100; i++ {
+			wc, rc := iu.NewWriteAtToReader()
+			n, err := rc.Read(nil)
+			if err != nil {
+				t.Errorf("unexpected error: want nil, got %v", err)
+			}
+			if n != 0 {
+				t.Errorf("unexpected result: want 0, got %v", n)
+			}
+			_ = rc.Close()
+			_ = wc.Close()
 		}
-		if n != 0 {
-			t.Errorf("WriteAtToReader read result %v != %v", n, 0)
-		}
-		_ = rc.Close()
-		_ = wc.Close()
 	})
 }

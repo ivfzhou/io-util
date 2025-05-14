@@ -15,6 +15,7 @@ package io_util
 import "os"
 
 // CopyFile 复制文件。
+//
 // Deprecated: 使用 os.Rename 代替。
 func CopyFile(src, dest string) error {
 	return os.Rename(src, dest)
