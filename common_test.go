@@ -14,10 +14,11 @@ package io_util_test
 
 import (
 	"context"
-	"errors"
+	crand "crypto/rand"
 	"fmt"
 	"io"
 	"math/rand"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -26,9 +27,8 @@ import (
 
 var CloseCount int32
 
-type perceptionCloser struct {
-	closeFlag int32
-	r         io.Reader
+type Part struct {
+	Offset, End int
 }
 
 type ctxCancelWithError struct {
@@ -36,32 +36,26 @@ type ctxCancelWithError struct {
 	err iu.AtomicError
 }
 
-type writerAt struct {
-	WriteFn func([]byte, int64) (int, error)
+type writeAtFunc struct {
+	w func([]byte, int64) (int, error)
 }
 
-type reader struct {
-	ReadFn func([]byte) (int, error)
-}
-
-type errorReader struct {
-	canReadData []byte
-	err         error
+type readCloser2 struct {
+	closeErr    error
+	readErr     error
 	closeFlag   int32
+	data        []byte
+	readCount   int
+	interceptor func()
 }
 
-type errorCloseReader struct {
-	canReadData []byte
-	err         error
-}
-
-type readInterceptor struct {
-	Fn func()
-	io.ReadCloser
-}
-
-type Part struct {
-	Offset, End int
+type readCloser struct {
+	closeErr    error
+	readErr     error
+	closeFlag   int32
+	data        []byte
+	readCount   int
+	interceptor func()
 }
 
 func Split[T any](arr []T) []*Part {
@@ -90,25 +84,95 @@ func Split[T any](arr []T) []*Part {
 	return parts
 }
 
-func (c *perceptionCloser) Close() error {
-	if !atomic.CompareAndSwapInt32(&c.closeFlag, 0, 1) {
-		return errors.New("closer is already closed")
+func MakeBytes(n int) []byte {
+	if n <= 0 {
+		n = 1024*1024*(rand.Intn(5)+1) + rand.Intn(14)
 	}
-
-	atomic.AddInt32(&CloseCount, -1)
-	return nil
+	data := make([]byte, n)
+	n, err := crand.Read(data)
+	if err != nil || n != len(data) {
+		panic("rand.Read fail")
+	}
+	return data
 }
 
-func (c *perceptionCloser) Read(p []byte) (n int, err error) {
-	return c.r.Read(p)
+func MakeByteArray(l int) ([][]byte, []byte) {
+	data := MakeBytes(0)
+	arr := make([][]byte, 0, l)
+	indexes := make([]int, l)
+	for i := 0; i < l-1; i++ {
+		indexes[i] = rand.Intn(len(data) + 1)
+	}
+	indexes[l-1] = len(data)
+	sort.Ints(indexes)
+	prevIndex := 0
+	for _, v := range indexes {
+		arr = append(arr, data[prevIndex:v])
+		prevIndex = v
+	}
+	return arr, data
 }
 
-func (c *readInterceptor) Read(p []byte) (n int, err error) {
-	c.Fn()
-	return c.ReadCloser.Read(p)
+func NewCtxCancelWithError() (context.Context, context.CancelCauseFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &ctxCancelWithError{Context: ctx}
+	return c, func(cause error) {
+		c.err.Set(cause)
+		cancel()
+	}
 }
 
-func (c *ctxCancelWithError) Deadline() (deadline time.Time, ok bool) {
+func NewReader2(data []byte, interceptor func(), closeErr, readErr error) iu.ReadCloser {
+	atomic.AddInt32(&CloseCount, 1)
+	return &readCloser2{
+		closeErr:    closeErr,
+		readErr:     readErr,
+		data:        data,
+		interceptor: interceptor,
+	}
+}
+
+func NewReader(data []byte, interceptor func(), closeErr, readErr error) io.ReadCloser {
+	atomic.AddInt32(&CloseCount, 1)
+	return &readCloser{
+		closeErr:    closeErr,
+		readErr:     readErr,
+		data:        data,
+		interceptor: interceptor,
+	}
+}
+
+func (rc *readCloser) Read(p []byte) (int, error) {
+	if len(rc.data) <= 0 {
+		if rc.readErr != nil {
+			return 0, rc.readErr
+		}
+		return 0, io.EOF
+	}
+	if rc.interceptor != nil {
+		rc.interceptor()
+	}
+	n := copy(p, rc.data)
+	rc.data = rc.data[n:]
+	rc.readCount += n
+	if len(rc.data) <= 0 {
+		if rc.readErr != nil {
+			return n, rc.readErr
+		}
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func (rc *readCloser) Close() error {
+	if atomic.CompareAndSwapInt32(&rc.closeFlag, 0, 1) {
+		atomic.AddInt32(&CloseCount, -1)
+		return rc.closeErr
+	}
+	return fmt.Errorf("reader already closed")
+}
+
+func (c *ctxCancelWithError) Deadline() (time.Time, bool) {
 	return c.Context.Deadline()
 }
 
@@ -124,69 +188,38 @@ func (c *ctxCancelWithError) Value(key any) any {
 	return c.Context.Value(key)
 }
 
-func (w *writerAt) WriteAt(p []byte, off int64) (n int, err error) {
-	return w.WriteFn(p, off)
+func (w *writeAtFunc) WriteAt(p []byte, off int64) (n int, err error) {
+	return w.w(p, off)
 }
 
-func (r *reader) Read(p []byte) (n int, err error) {
-	return r.ReadFn(p)
-}
-
-func (e *errorReader) Read(p []byte) (int, error) {
-	if len(e.canReadData) <= 0 {
-		return 0, e.err
+func (rc *readCloser2) Read() ([]byte, error) {
+	if len(rc.data) <= 0 {
+		if rc.readErr != nil {
+			return nil, rc.readErr
+		}
+		return nil, io.EOF
 	}
-	n := copy(p, e.canReadData)
-	e.canReadData = e.canReadData[n:]
-	return n, nil
-}
-
-func (e *errorReader) Close() error {
-	if !atomic.CompareAndSwapInt32(&e.closeFlag, 0, 1) {
-		return fmt.Errorf("reader already closed")
+	if rc.interceptor != nil {
+		rc.interceptor()
 	}
-	atomic.AddInt32(&CloseCount, -1)
-	return nil
-}
-
-func (e *errorCloseReader) Read(p []byte) (int, error) {
-	if len(e.canReadData) <= 0 {
-		return 0, io.EOF
+	n := rand.Intn(len(rc.data) + 1)
+	p := make([]byte, n)
+	copy(p, rc.data[:n])
+	rc.data = rc.data[n:]
+	rc.readCount += n
+	if len(rc.data) <= 0 {
+		if rc.readErr != nil {
+			return p, rc.readErr
+		}
+		return p, io.EOF
 	}
-	n := copy(p, e.canReadData)
-	e.canReadData = e.canReadData[n:]
-	return n, nil
+	return p, nil
 }
 
-func (e *errorCloseReader) Close() error {
-	atomic.AddInt32(&CloseCount, -1)
-	return e.err
-}
-
-func newErrorReader(err error, data []byte) io.ReadCloser {
-	atomic.AddInt32(&CloseCount, 1)
-	return &errorReader{err: err, canReadData: data}
-}
-
-func newErrorCloseReader(err error, data []byte) io.ReadCloser {
-	atomic.AddInt32(&CloseCount, 1)
-	return &errorCloseReader{canReadData: data, err: err}
-}
-
-func newCtxCancelWithError() (context.Context, context.CancelCauseFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
-	c := &ctxCancelWithError{Context: ctx}
-	return c, func(cause error) {
-		c.err.Set(cause)
-		cancel()
+func (rc *readCloser2) Close() error {
+	if atomic.CompareAndSwapInt32(&rc.closeFlag, 0, 1) {
+		atomic.AddInt32(&CloseCount, -1)
+		return rc.closeErr
 	}
-}
-
-func newClosePerception(r io.Reader) io.ReadCloser {
-	atomic.AddInt32(&CloseCount, 1)
-	return &perceptionCloser{r: r}
-}
-
-func newReadInterceptor(f func(), r io.ReadCloser) io.ReadCloser {
-	return &readInterceptor{Fn: f, ReadCloser: r}
+	return fmt.Errorf("reader already closed")
 }

@@ -22,10 +22,14 @@ var segmentPool = sync.Pool{New: func() any { return &segment{} }}
 
 // SegmentManager 多个段管理。
 type SegmentManager struct {
-	segments     map[int]*segment
+	// 管理一段内存。
+	segments map[int]*segment
+	// 读取位置。
 	readPosition int
-	lock         sync.Mutex
-	axisMarker   AxisMarker
+	// 记录写入字节的位置。
+	axisMarker AxisMarker
+	// 读写互斥。
+	lock sync.Mutex
 }
 
 // 段数据。
@@ -36,10 +40,9 @@ type segment struct {
 
 // WriteAt 写入数据。
 func (m *SegmentManager) WriteAt(bs []byte, offset int64) (int, error) {
-	length := len(bs)
-
 	m.lock.Lock()
 	defer m.lock.Unlock()
+	length := len(bs)
 
 	// 丢弃在读取位置前的写入。
 	if offset < int64(m.readPosition) {
@@ -88,6 +91,9 @@ func (m *SegmentManager) WriteAt(bs []byte, offset int64) (int, error) {
 
 // Read 读取数据。
 func (m *SegmentManager) Read(bs []byte) (int, error) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
 	// 没有段可读就返回函数。
 	if len(bs) <= 0 {
 		return 0, nil
@@ -95,9 +101,6 @@ func (m *SegmentManager) Read(bs []byte) (int, error) {
 	if len(m.segments) <= 0 {
 		return 0, nil
 	}
-
-	m.lock.Lock()
-	defer m.lock.Unlock()
 
 	// 数据还没写入，返回函数。
 	getLen := m.axisMarker.Get(m.readPosition, len(bs))

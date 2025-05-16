@@ -38,42 +38,49 @@ func CopyReaderToWriterAt(r io.Reader, w io.WriterAt, offset int64, nonBuffer bo
 	}
 
 	buf := make([]byte, 256)
-	n, l := 0, 0
-	for {
+	n, l := 0, int64(0)
+	next := true
+	var readErr error
+	for next {
 		n, err = r.Read(buf)
-		if errors.Is(err, io.EOF) { // 读取完毕了，返回函数。
-			return written, nil
-		} else if err != nil { // 读取数据发生错误，返回函数。
-			return written, err
-		} else if n <= 0 { // 没读取到数据，重新读取。
+		if err != nil { // 读取完毕了，返回函数。
+			next = false
+			if errors.Is(err, io.EOF) {
+				err = nil // 把 EOF 吞了，避免返回它。
+			}
+			readErr = err
+		}
+		if n <= 0 { // 没读取到数据，重新读取。
 			continue
 		}
 
 		// 将读取到的数据写入 w。
-		data := buf[:n]
-		for len(data) > 0 {
-			l, err = w.WriteAt(data, offset)
-			if err != nil {
-				return written + int64(l), err
-			}
-			offset += int64(l)
-			data = data[l:]
-			written += int64(l)
+		l, err = WriteAtAll(w, offset, buf[:n])
+		offset += l
+		written += l
+		if err != nil {
+			return written, err
 		}
 
-		if nonBuffer { // 不使用缓存，则每次分配新的缓存。
-			bufferSize := uint64(len(buf))
-			if n == len(buf) {
-				bufferSize = growBufferSize(uint64(len(buf)))
-			}
-			buf = make([]byte, bufferSize)
-		} else { // 使用缓存时，如果读满了缓存，则分配更大的缓存。
-			if n == len(buf) {
-				bufferSize := growBufferSize(uint64(len(buf)))
-				if bufferSize > uint64(len(buf)) {
-					buf = make([]byte, bufferSize)
+		if next {
+			if nonBuffer { // 不使用缓存，则每次分配新的缓存。
+				bufferSize := uint64(len(buf))
+				if n == len(buf) {
+					bufferSize = growBufferSize(uint64(len(buf)))
+				}
+				buf = make([]byte, bufferSize)
+			} else { // 使用缓存时，如果读满了缓存，则分配更大的缓存。
+				if n == len(buf) {
+					bufferSize := growBufferSize(uint64(len(buf)))
+					if bufferSize > uint64(len(buf)) {
+						buf = make([]byte, bufferSize)
+					}
 				}
 			}
+		} else if readErr != nil {
+			return written, readErr
 		}
 	}
+
+	return
 }

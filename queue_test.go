@@ -14,20 +14,18 @@ package io_util_test
 
 import (
 	"math/rand"
-	"runtime"
 	"testing"
 
 	iu "gitee.com/ivfzhou/io-util"
 )
 
 func TestQueue(t *testing.T) {
-	t.Run("正常使用", func(t *testing.T) {
+	t.Run("正常运行", func(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			expectedResult := make([]int, 1000)
 			for i := range expectedResult {
 				expectedResult[i] = rand.Intn(100)
 			}
-
 			queue := &iu.Queue[int]{}
 			go func() {
 				for i := range expectedResult {
@@ -38,7 +36,6 @@ func TestQueue(t *testing.T) {
 				}
 				queue.Close()
 			}()
-
 			index := 0
 			for v := range queue.GetFromChan() {
 				if v != expectedResult[index] {
@@ -57,17 +54,14 @@ func TestQueue(t *testing.T) {
 				t.Errorf("unexpected result: want true, got %v", ok)
 			}
 			queue.Close()
-
 			ok = queue.Push(2)
 			if ok {
 				t.Errorf("unexpected result: want false, got %v", ok)
 			}
-
 			value := <-queue.GetFromChan()
 			if value != 1 {
 				t.Errorf("unexpected result: want 1, got %v", value)
 			}
-
 			_, ok = <-queue.GetFromChan()
 			if ok {
 				t.Errorf("unexpected result: want false, got %v", ok)
@@ -76,34 +70,26 @@ func TestQueue(t *testing.T) {
 	})
 
 	t.Run("大量数据", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
-			data := make([]int, 1024*100*(rand.Intn(5)+1)+10)
+		data := make([]int, 1024*1024*(rand.Intn(5)+1)+10)
+		for i := range data {
+			data[i] = rand.Intn(100)
+		}
+		queue := &iu.Queue[int]{}
+		go func() {
 			for i := range data {
-				data[i] = rand.Intn(100)
-			}
-
-			queue := &iu.Queue[int]{}
-			go func() {
-				for i := range data {
-					ok := queue.Push(data[i])
-					if !ok {
-						t.Errorf("unexpected result: want true, got %v", ok)
-					}
+				ok := queue.Push(data[i])
+				if !ok {
+					t.Errorf("unexpected result: want true, got %v", ok)
 				}
-				queue.Close()
-			}()
-
-			index := 0
-			for v := range queue.GetFromChan() {
-				if v != data[index] {
-					t.Errorf("unexpected result: want %v, got %v", data[index], v)
-				}
-				index++
 			}
-
-			data = nil
-			queue = nil
-			runtime.GC()
+			queue.Close()
+		}()
+		index := 0
+		for v := range queue.GetFromChan() {
+			if v != data[index] {
+				t.Errorf("unexpected result: want %v, got %v", data[index], v)
+			}
+			index++
 		}
 	})
 }

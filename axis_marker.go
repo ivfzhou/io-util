@@ -226,31 +226,41 @@ func (m *AxisMarker) Get(offset, length int) int {
 }
 
 // GetMaxMarkLine 获取从某点开始连续被标记的长度。
-//
-// Deprecated: 使用 Get 代替。
 func (m *AxisMarker) GetMaxMarkLine(begin int64) int64 {
+	// 还没有标记，可直接返回。
 	if len(m.lines) <= 0 {
 		return 0
 	}
 
+	// 找出 begin 在哪个位置。
 	index := m.findIndex(int(begin))
+
+	// 在最左边，说明还没有标记。
 	if index < 0 {
 		return 0
 	}
+
+	// 在最右边，且最后一个元素每覆盖到，则可返回。
 	if index == len(m.lines) && begin >= int64(m.lines[len(m.lines)-1].end()) {
 		return 0
 	}
 
+	// 在第一个元素上。
 	if index == 0 {
 		return int64(m.lines[0].end()) - begin
 	}
+
+	// 在最右边。
 	if index == len(m.lines) {
 		return int64(m.lines[len(m.lines)-1].end()) - begin
 	}
+
+	// 在某一个元素左边端点。
 	if int64(m.lines[index].offset) == begin {
 		return int64(m.lines[index].end()) - begin
 	}
 
+	// 找出前一个元素是否覆盖到。
 	prevIndex := index - 1
 	prevElem := m.lines[prevIndex]
 	if int64(prevElem.end()) > begin {

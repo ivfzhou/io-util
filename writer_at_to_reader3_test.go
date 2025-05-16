@@ -24,8 +24,8 @@ import (
 	iu "gitee.com/ivfzhou/io-util"
 )
 
-func ExampleNewWriteAtToReader() {
-	wc, rc := iu.NewWriteAtToReader()
+func ExampleNewWriteAtToReader3() {
+	wc, rc := iu.NewWriteAtToReader3()
 
 	// 读取完后关闭流。
 	defer rc.Close()
@@ -52,10 +52,10 @@ func ExampleNewWriteAtToReader() {
 	_, _ = bs, err
 }
 
-func TestNewWriteAtToReader(t *testing.T) {
+func TestNewWriteAtToReader3(t *testing.T) {
 	t.Run("正常运行", func(t *testing.T) {
 		for i := 0; i < 100; i++ {
-			wc, rc := iu.NewWriteAtToReader()
+			wc, rc := iu.NewWriteAtToReader3()
 			expectedResult := MakeBytes(0)
 			go func() {
 				var part = min(len(expectedResult)/10, 1024*1024*8)
@@ -97,7 +97,7 @@ func TestNewWriteAtToReader(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			expectedResult := MakeBytes(0)
 			confusedData := MakeBytes(len(expectedResult) / 4)
-			wc, rc := iu.NewWriteAtToReader()
+			wc, rc := iu.NewWriteAtToReader3()
 			written, err := iu.WriteAtAll(wc, rand.Int63n(int64(len(expectedResult)-len(confusedData))), confusedData)
 			if err != nil {
 				t.Errorf("unexpected error: want nil, got %v", err)
@@ -111,9 +111,9 @@ func TestNewWriteAtToReader(t *testing.T) {
 				defer wg.Done()
 				parts := Split(expectedResult)
 				begin := rand.Intn(len(expectedResult) / 2)
+				wg := sync.WaitGroup{}
 				end := begin + rand.Intn(len(expectedResult)-len(expectedResult)/2)
 				parts = append(parts, Split(expectedResult[begin:end])...)
-				wg := sync.WaitGroup{}
 				for _, v := range parts {
 					wg.Add(1)
 					go func(v *Part) {
@@ -149,7 +149,7 @@ func TestNewWriteAtToReader(t *testing.T) {
 
 	t.Run("没有数据写入", func(t *testing.T) {
 		for i := 0; i < 100; i++ {
-			wc, rc := iu.NewWriteAtToReader()
+			wc, rc := iu.NewWriteAtToReader3()
 			err := wc.Close()
 			if err != nil {
 				t.Errorf("unexpected error: want nil, got %v", err)
@@ -169,7 +169,7 @@ func TestNewWriteAtToReader(t *testing.T) {
 
 	t.Run("写入发生失败", func(t *testing.T) {
 		for i := 0; i < 100; i++ {
-			wc, rc := iu.NewWriteAtToReader()
+			wc, rc := iu.NewWriteAtToReader3()
 			expectedErr := errors.New("expected error")
 			data := MakeBytes(0)
 			go func() {
@@ -200,7 +200,7 @@ func TestNewWriteAtToReader(t *testing.T) {
 
 	t.Run("写入位置为负数", func(t *testing.T) {
 		for i := 0; i < 100; i++ {
-			wc, rc := iu.NewWriteAtToReader()
+			wc, rc := iu.NewWriteAtToReader3()
 			n, err := wc.WriteAt([]byte(""), -1)
 			if !errors.Is(err, iu.ErrOffsetCannotNegative) {
 				t.Errorf("unexpected error: want %v, got %v", iu.ErrOffsetCannotNegative, err)
@@ -219,7 +219,7 @@ func TestNewWriteAtToReader(t *testing.T) {
 
 	t.Run("关闭写入流后，再写入", func(t *testing.T) {
 		for i := 0; i < 100; i++ {
-			wc, rc := iu.NewWriteAtToReader()
+			wc, rc := iu.NewWriteAtToReader3()
 			err := wc.Close()
 			if err != nil {
 				t.Errorf("unexpected error: want nil, got %v", err)
@@ -239,7 +239,7 @@ func TestNewWriteAtToReader(t *testing.T) {
 
 	t.Run("关闭读取流后，再读取", func(t *testing.T) {
 		for i := 0; i < 100; i++ {
-			wc, rc := iu.NewWriteAtToReader()
+			wc, rc := iu.NewWriteAtToReader3()
 			err := rc.Close()
 			if err != nil {
 				t.Errorf("unexpected error: want nil, got %v", err)
@@ -259,7 +259,7 @@ func TestNewWriteAtToReader(t *testing.T) {
 
 	t.Run("多次关闭写入流", func(t *testing.T) {
 		for i := 0; i < 100; i++ {
-			wc, rc := iu.NewWriteAtToReader()
+			wc, rc := iu.NewWriteAtToReader3()
 			err := wc.Close()
 			if err != nil {
 				t.Errorf("unexpected error: want nil, got %v", err)
@@ -275,7 +275,7 @@ func TestNewWriteAtToReader(t *testing.T) {
 
 	t.Run("多次关闭读取流", func(t *testing.T) {
 		for i := 0; i < 100; i++ {
-			wc, rc := iu.NewWriteAtToReader()
+			wc, rc := iu.NewWriteAtToReader3()
 			err := rc.Close()
 			if err != nil {
 				t.Errorf("unexpected error: want nil, got %v", err)
@@ -291,7 +291,7 @@ func TestNewWriteAtToReader(t *testing.T) {
 
 	t.Run("并发写入期间，关闭写入流", func(t *testing.T) {
 		for i := 0; i < 100; i++ {
-			wc, rc := iu.NewWriteAtToReader()
+			wc, rc := iu.NewWriteAtToReader3()
 			expectedResult := MakeBytes(0)
 			successWritten := sync.Map{}
 			closeSuccessFlag := false
