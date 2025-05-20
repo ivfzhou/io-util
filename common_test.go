@@ -171,7 +171,7 @@ func (rc *readCloser) Read(p []byte) (int, error) {
 			p[len(p)-1]++
 			p = p[:len(p)-1]
 			rc.data = nil
-			return n, rc.readErr
+			return n - 1, rc.readErr
 		}
 		return n, io.EOF
 	}
