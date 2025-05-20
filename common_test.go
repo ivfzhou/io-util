@@ -45,6 +45,7 @@ type readCloser2 struct {
 	readErr     error
 	closeFlag   int32
 	data        []byte
+	total       int
 	readCount   int
 	interceptor func()
 }
@@ -55,6 +56,7 @@ type readCloser struct {
 	closeFlag   int32
 	data        []byte
 	readCount   int
+	total       int
 	interceptor func()
 }
 
@@ -128,6 +130,7 @@ func NewReader2(data []byte, interceptor func(), closeErr, readErr error) iu.Rea
 		closeErr:    closeErr,
 		readErr:     readErr,
 		data:        data,
+		total:       len(data),
 		interceptor: interceptor,
 	}
 }
@@ -138,25 +141,36 @@ func NewReader(data []byte, interceptor func(), closeErr, readErr error) io.Read
 		closeErr:    closeErr,
 		readErr:     readErr,
 		data:        data,
+		total:       len(data),
 		interceptor: interceptor,
 	}
 }
 
 func (rc *readCloser) Read(p []byte) (int, error) {
+	if rc.interceptor != nil {
+		rc.interceptor()
+	}
 	if len(rc.data) <= 0 {
 		if rc.readErr != nil {
+			rc.data = nil
 			return 0, rc.readErr
 		}
 		return 0, io.EOF
 	}
-	if rc.interceptor != nil {
-		rc.interceptor()
+	if rc.readErr != nil {
+		if rc.readCount >= rc.total/2 {
+			rc.data = nil
+			return 0, rc.readErr
+		}
 	}
 	n := copy(p, rc.data)
 	rc.data = rc.data[n:]
 	rc.readCount += n
 	if len(rc.data) <= 0 {
 		if rc.readErr != nil {
+			p[len(p)-1]++
+			p = p[:len(p)-1]
+			rc.data = nil
 			return n, rc.readErr
 		}
 		return n, io.EOF
@@ -193,14 +207,20 @@ func (w *writeAtFunc) WriteAt(p []byte, off int64) (n int, err error) {
 }
 
 func (rc *readCloser2) Read() ([]byte, error) {
+	if rc.interceptor != nil {
+		rc.interceptor()
+	}
 	if len(rc.data) <= 0 {
 		if rc.readErr != nil {
 			return nil, rc.readErr
 		}
 		return nil, io.EOF
 	}
-	if rc.interceptor != nil {
-		rc.interceptor()
+	if rc.readErr != nil {
+		if rc.readCount >= rc.total/2 {
+			rc.data = nil
+			return nil, rc.readErr
+		}
 	}
 	n := rand.Intn(len(rc.data) + 1)
 	p := make([]byte, n)
@@ -209,6 +229,8 @@ func (rc *readCloser2) Read() ([]byte, error) {
 	rc.readCount += n
 	if len(rc.data) <= 0 {
 		if rc.readErr != nil {
+			p = p[:len(p)-1]
+			rc.data = nil
 			return p, rc.readErr
 		}
 		return p, io.EOF

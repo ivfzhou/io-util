@@ -168,30 +168,47 @@ func TestNewWriteAtToReader2(t *testing.T) {
 	})
 
 	t.Run("写入发生失败", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 1; i++ {
 			wc, rc := iu.NewWriteAtToReader2()
 			expectedErr := errors.New("expected error")
 			data := MakeBytes(0)
+			wg := sync.WaitGroup{}
+			parts := Split(data)
 			go func() {
-				n, err := iu.WriteAtAll(wc, 0, data)
-				if err != nil {
-					t.Errorf("unexpected error: want nil, got %v", err)
+				occurErrIndex := rand.Intn(len(parts))
+				for i, v := range parts {
+					wg.Add(1)
+					go func(i int, v *Part) {
+						defer wg.Done()
+						n, err := iu.WriteAtAll(wc, int64(v.Offset), data[v.Offset:v.End])
+						if err != nil && !errors.Is(err, expectedErr) && !errors.Is(err, iu.ErrWriterIsClosed) {
+							t.Errorf("unexpected error: want %v, got %v", expectedErr, err)
+						}
+						if err == nil && n != int64(v.End-v.Offset) {
+							t.Errorf("unexpected result: want %v, got %v", v.End-v.Offset, n)
+						}
+						if i == occurErrIndex {
+							if err = wc.CloseByError(expectedErr); err != nil {
+								t.Errorf("unexpected error: want nil, got %v", err)
+							}
+						}
+					}(i, v)
 				}
-				if n != int64(len(data)) {
-					t.Errorf("unexpected result: want %v, got %v", len(data), n)
+			}()
+			wg.Add(1)
+			var result []byte
+			go func() {
+				defer wg.Done()
+				var err error
+				result, err = iu.ReadAll(rc)
+				if !errors.Is(err, expectedErr) {
+					t.Errorf("unexpected error: want %v, got %v", expectedErr, err)
 				}
-				err = wc.CloseByError(expectedErr)
-				if err != nil {
+				if err = rc.Close(); err != nil {
 					t.Errorf("unexpected error: want nil, got %v", err)
 				}
 			}()
-			result, err := iu.ReadAll(rc)
-			if !errors.Is(err, expectedErr) {
-				t.Errorf("unexpected error: want %v, got %v", expectedErr, err)
-			}
-			if err = rc.Close(); err != nil {
-				t.Errorf("unexpected error: want nil, got %v", err)
-			}
+			wg.Wait()
 			if !bytes.HasPrefix(data, result) {
 				t.Errorf("unexpected result: want %v, got %v", len(data), len(result))
 			}

@@ -145,6 +145,9 @@ func (m *writerAtToReader) Read(p []byte) (int, error) {
 	if getLen <= 0 {
 		// 没有可读取的字节，且写入流已经关闭了，则返回 EOF。
 		if atomic.LoadInt32(&m.writerCloseFlag) > 0 {
+			if err := m.err.Get(); err != nil { // 当刚好设置了错误，而上面没有拦截到时，应当返回错误。
+				return 0, err
+			}
 			return 0, io.EOF
 		}
 		return 0, nil
@@ -176,11 +179,10 @@ func (c *writeAtCloser) CloseByError(err error) error {
 func (c *readCloser) Close() error { return c.closeRead() }
 
 func (m *writerAtToReader) closeWrite(err error) error {
+	if err != nil { // 先设置错误，避免错误信息丢失。
+		m.err.Set(err)
+	}
 	if atomic.CompareAndSwapInt32(&m.writerCloseFlag, 0, 1) {
-		// 记录错误信息。
-		if err != nil {
-			m.err.Set(err)
-		}
 		return nil
 	}
 	return ErrWriterIsClosed

@@ -172,26 +172,42 @@ func TestNewWriteAtToReader3(t *testing.T) {
 			wc, rc := iu.NewWriteAtToReader3()
 			expectedErr := errors.New("expected error")
 			data := MakeBytes(0)
+			wg := sync.WaitGroup{}
+			parts := Split(data)
 			go func() {
-				n, err := iu.WriteAtAll(wc, 0, data)
-				if err != nil {
-					t.Errorf("unexpected error: want nil, got %v", err)
+				occurErrIndex := rand.Intn(len(parts))
+				for i, v := range parts {
+					wg.Add(1)
+					go func(i int, v *Part) {
+						defer wg.Done()
+						n, err := iu.WriteAtAll(wc, int64(v.Offset), data[v.Offset:v.End])
+						if err != nil && !errors.Is(err, expectedErr) && !errors.Is(err, iu.ErrWriterIsClosed) {
+							t.Errorf("unexpected error: want nil, got %v", err)
+						}
+						if err == nil && n != int64(v.End-v.Offset) {
+							t.Errorf("unexpected result: want %v, got %v", v.Offset-v.End, n)
+						}
+						if i == occurErrIndex {
+							if err = wc.CloseByError(expectedErr); err != nil {
+								t.Errorf("unexpected error: want nil, got %v", err)
+							}
+						}
+					}(i, v)
 				}
-				if n != int64(len(data)) {
-					t.Errorf("unexpected result: want %v, got %v", len(data), n)
+			}()
+			wg.Add(1)
+			var result []byte
+			go func() {
+				defer wg.Done()
+				var err error
+				result, err = io.ReadAll(rc)
+				if !errors.Is(err, expectedErr) {
+					t.Errorf("unexpected error: want %v, got %v", expectedErr, err)
 				}
-				err = wc.CloseByError(expectedErr)
-				if err != nil {
+				if err = rc.Close(); err != nil {
 					t.Errorf("unexpected error: want nil, got %v", err)
 				}
 			}()
-			result, err := io.ReadAll(rc)
-			if !errors.Is(err, expectedErr) {
-				t.Errorf("unexpected error: want %v, got %v", expectedErr, err)
-			}
-			if err = rc.Close(); err != nil {
-				t.Errorf("unexpected error: want nil, got %v", err)
-			}
 			if !bytes.HasPrefix(data, result) {
 				t.Errorf("unexpected result: want %v, got %v", len(data), len(result))
 			}

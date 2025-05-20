@@ -208,11 +208,11 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 					rc:     NewReader(data[0], nil, nil, nil),
 				},
 				{
-					offset: 13,
+					offset: int64(len(data[0])),
 					rc:     NewReader(data[1], nil, nil, nil),
 				},
 				{
-					offset: 29,
+					offset: int64(len(data[1]) + len(data[0])),
 					rc:     NewReader(data[2], nil, nil, nil),
 				},
 			}

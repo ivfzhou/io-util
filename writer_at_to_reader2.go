@@ -172,6 +172,9 @@ func (m *writerAtToReader2) Read() ([]byte, error) {
 
 	// 读不出数据，且写入流已经关闭了，则返回 io.EOF。
 	if len(bs) <= 0 && atomic.LoadInt32(&m.writerCloseFlag) > 0 {
+		if err := m.err.Get(); err != nil { // 当刚好设置了错误，而上面没有拦截到时，应当返回错误。
+			return nil, err
+		}
 		return nil, io.EOF
 	}
 
@@ -501,11 +504,10 @@ func (m *writerAtToReader2) findIndex(offset int64) (index int, offsets []int64)
 }
 
 func (m *writerAtToReader2) closeWrite(err error) error {
+	if err != nil { // 先设置错误，避免错误信息丢失。
+		m.err.Set(err)
+	}
 	if atomic.CompareAndSwapInt32(&m.writerCloseFlag, 0, 1) {
-		// 保存错误信息，以便读取流可以感知。
-		if err != nil {
-			m.err.Set(err)
-		}
 		return nil
 	}
 	return ErrWriterIsClosed

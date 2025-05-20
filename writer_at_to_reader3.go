@@ -114,6 +114,9 @@ func (m *writerAtToReader3) Read(p []byte) (int, error) {
 
 	// 读不出数据，且写入流已经关闭了，则返回 io.EOF。
 	if n <= 0 && atomic.LoadInt32(&m.writerCloseFlag) > 0 {
+		if err = m.err.Get(); err != nil { // 当刚好设置了错误，而上面没有拦截到时，应当返回错误。
+			return 0, err
+		}
 		return 0, io.EOF
 	}
 
@@ -132,10 +135,10 @@ func (c *writeAtCloser3) CloseByError(err error) error {
 func (c *readCloser3) Close() error { return c.closeRead() }
 
 func (m *writerAtToReader3) closeWrite(err error) error {
+	if err != nil { // 先设置错误，避免错误信息丢失。
+		m.err.Set(err)
+	}
 	if atomic.CompareAndSwapInt32(&m.writerCloseFlag, 0, 1) {
-		if err != nil {
-			m.err.Set(err)
-		}
 		return nil
 	}
 	return ErrWriterIsClosed

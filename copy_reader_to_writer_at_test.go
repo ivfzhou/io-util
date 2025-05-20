@@ -56,11 +56,11 @@ func TestCopyReaderToWriterAt(t *testing.T) {
 			if !errors.Is(err, expectedErr) {
 				t.Errorf("unexpected error: want %v, got %v", expectedErr, err)
 			}
-			if written != int64(len(data[:index])) {
+			if written >= int64(len(data[:index])) {
 				t.Errorf("unexpected result: want %v, got %v", len(data[:index]), written)
 			}
-			if !bytes.Equal(data[:index], result[:index]) {
-				t.Errorf("unexpected result: want %v, got %v", len(data[:index]), len(result[:index]))
+			if !bytes.Equal(data[:written], result[:written]) {
+				t.Errorf("unexpected result: want %v, got %v", len(data[:written]), len(result[:written]))
 			}
 		}
 	})
