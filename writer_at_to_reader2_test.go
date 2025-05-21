@@ -174,10 +174,10 @@ func TestNewWriteAtToReader2(t *testing.T) {
 			data := MakeBytes(0)
 			wg := sync.WaitGroup{}
 			parts := Split(data)
+			wg.Add(len(parts))
 			go func() {
 				occurErrIndex := rand.Intn(len(parts))
 				for i, v := range parts {
-					wg.Add(1)
 					go func(i int, v *Part) {
 						defer wg.Done()
 						n, err := iu.WriteAtAll(wc, int64(v.Offset), data[v.Offset:v.End])

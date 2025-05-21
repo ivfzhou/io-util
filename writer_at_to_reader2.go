@@ -198,10 +198,14 @@ func (c *writeCloser2) Close() error {
 func (c *changeReader) Read(p []byte) (n int, err error) {
 	// 临时字节已读取完毕。
 	if len(c.tmp) <= 0 {
+		if c.eof {
+			return 0, io.EOF
+		}
 		c.tmp, err = c.rc.Read()
 		if errors.Is(err, io.EOF) { // 读取完毕了。
 			c.eof = true
 			if len(c.tmp) <= 0 { // 没有多余字节需要处理，直接返回 EOF。
+				c.tmp = nil
 				return 0, io.EOF
 			}
 		}
@@ -232,10 +236,10 @@ func (c *changeReader) Read(p []byte) (n int, err error) {
 
 	// 释放内存。
 	if len(c.tmp) <= 0 {
+		c.tmp = nil
 		if c.eof { // 全部读完了。
 			return n, io.EOF
 		}
-		c.tmp = nil
 	}
 
 	return n, nil
