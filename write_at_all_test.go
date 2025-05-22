@@ -27,14 +27,14 @@ func TestWriteAtAll(t *testing.T) {
 			offset := rand.Int63n(100)
 			data := MakeBytes(0)
 			result := make([]byte, offset+int64(len(data)))
-			wa := &writeAtFunc{w: func(p []byte, o int64) (int, error) {
+			wa := NewWriteAt(func(p []byte, o int64) (int, error) {
 				n := rand.Intn(len(p) + 1)
 				if len(p) > len(result[o:]) {
 					t.Errorf("unexpected p: want %v, got %v", len(p), len(result[o:]))
 				}
 				copy(result[o:], p[:n])
 				return n, nil
-			}}
+			})
 			written, err := iu.WriteAtAll(wa, offset, data)
 			if err != nil {
 				t.Errorf("unexpected error: want nil, got %v", err)
@@ -56,7 +56,7 @@ func TestWriteAtAll(t *testing.T) {
 			expectedErr := errors.New("expected error")
 			count := 0
 			index := rand.Intn(len(data) + 1)
-			wa := &writeAtFunc{w: func(p []byte, o int64) (int, error) {
+			wa := NewWriteAt(func(p []byte, o int64) (int, error) {
 				n := rand.Intn(len(p) + 1)
 				if len(p) > len(result[o:]) {
 					t.Errorf("unexpected p: want %v, got %v", len(p), len(result[o:]))
@@ -67,7 +67,7 @@ func TestWriteAtAll(t *testing.T) {
 					return n, expectedErr
 				}
 				return n, nil
-			}}
+			})
 			written, err := iu.WriteAtAll(wa, offset, data)
 			if !errors.Is(err, expectedErr) {
 				t.Errorf("unexpected error: want nil, got %v", err)

@@ -15,14 +15,14 @@ func TestCopyReaderToWriterAt(t *testing.T) {
 			data := MakeBytes(0)
 			result := make([]byte, len(data))
 			offset := rand.Int63n(10)
-			wa := &writeAtFunc{w: func(p []byte, off int64) (int, error) {
+			wa := NewWriteAt(func(p []byte, off int64) (int, error) {
 				if len(p) > 0 {
 					l := rand.Intn(len(p)) + 1
 					copy(result[off-offset:], p[:l])
 					return l, nil
 				}
 				return 0, nil
-			}}
+			})
 			written, err := iu.CopyReaderToWriterAt(bytes.NewReader(data), wa, offset, rand.Intn(2) == 1)
 			if err != nil {
 				t.Errorf("unexpected error: want nil, got %v", err)
@@ -41,14 +41,14 @@ func TestCopyReaderToWriterAt(t *testing.T) {
 			data := MakeBytes(0)
 			result := make([]byte, len(data))
 			offset := rand.Int63n(10)
-			wa := &writeAtFunc{w: func(p []byte, off int64) (int, error) {
+			wa := NewWriteAt(func(p []byte, off int64) (int, error) {
 				if len(p) > 0 {
 					l := rand.Intn(len(p)) + 1
 					copy(result[off-offset:], p[:l])
 					return l, nil
 				}
 				return 0, nil
-			}}
+			})
 			expectedErr := errors.New("expected error")
 			index := rand.Intn(len(data))
 			written, err := iu.CopyReaderToWriterAt(NewReader(data[:index], nil, nil, expectedErr), wa, offset,
@@ -73,7 +73,7 @@ func TestCopyReaderToWriterAt(t *testing.T) {
 			expectedErr := errors.New("expected error")
 			occurErrorIndex := rand.Intn(len(data))
 			writen := 0
-			wa := &writeAtFunc{w: func(p []byte, off int64) (int, error) {
+			wa := NewWriteAt(func(p []byte, off int64) (int, error) {
 				if writen >= occurErrorIndex {
 					return 0, expectedErr
 				}
@@ -84,7 +84,7 @@ func TestCopyReaderToWriterAt(t *testing.T) {
 					return l, nil
 				}
 				return 0, nil
-			}}
+			})
 			written, err := iu.CopyReaderToWriterAt(bytes.NewReader(data), wa, offset, rand.Intn(2) == 1)
 			if !errors.Is(err, expectedErr) {
 				t.Errorf("unexpected error: want %v, got %v", expectedErr, err)

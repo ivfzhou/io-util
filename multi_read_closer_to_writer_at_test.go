@@ -34,7 +34,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			resultMap := make(map[int64][]byte)
 			lock := sync.Mutex{}
-			wa := &writeAtFunc{func(p []byte, off int64) (int, error) {
+			wa := NewWriteAt(func(p []byte, off int64) (int, error) {
 				if len(p) <= 0 {
 					return 0, nil
 				}
@@ -45,7 +45,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 				copy(bs, p[:index])
 				resultMap[off] = bs
 				return index, nil
-			}}
+			})
 			send, wait := iu.NewMultiReadCloserToWriterAt(context.Background(), wa)
 			data, data1 := MakeByteArray(3)
 			atomic.StoreInt32(&CloseCount, 0)
@@ -103,7 +103,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			resultMap := make(map[int64][]byte)
 			lock := sync.Mutex{}
-			wa := &writeAtFunc{func(p []byte, off int64) (int, error) {
+			wa := NewWriteAt(func(p []byte, off int64) (int, error) {
 				if len(p) <= 0 {
 					return 0, nil
 				}
@@ -112,7 +112,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 				index := rand.Intn(len(p)) + 1
 				resultMap[off] = p[:index]
 				return index, nil
-			}}
+			})
 			send, wait := iu.NewMultiReadCloserToWriterAt(context.Background(), wa)
 			atomic.StoreInt32(&CloseCount, 0)
 			expectedErr := fmt.Errorf("expected error")
@@ -180,7 +180,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 			occurErrorIndex := rand.Intn(3)
 			writeTimes := 0
 			expectedErr := fmt.Errorf("expected error")
-			wa := &writeAtFunc{func(p []byte, off int64) (int, error) {
+			wa := NewWriteAt(func(p []byte, off int64) (int, error) {
 				if len(p) <= 0 {
 					return 0, nil
 				}
@@ -195,7 +195,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 				}
 				writeTimes++
 				return index, nil
-			}}
+			})
 			send, wait := iu.NewMultiReadCloserToWriterAt(context.Background(), wa)
 			data, data1 := MakeByteArray(3)
 			atomic.StoreInt32(&CloseCount, 0)
@@ -260,7 +260,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 			ctx, cancel := NewCtxCancelWithError()
 			result := make(map[int64][]byte)
 			lock := sync.Mutex{}
-			wa := &writeAtFunc{func(p []byte, off int64) (int, error) {
+			wa := NewWriteAt(func(p []byte, off int64) (int, error) {
 				if len(p) <= 0 {
 					return 0, nil
 				}
@@ -268,7 +268,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 				defer lock.Unlock()
 				result[off] = p
 				return len(p), nil
-			}}
+			})
 			send, wait := iu.NewMultiReadCloserToWriterAt(ctx, wa)
 			atomic.StoreInt32(&CloseCount, 0)
 			cancelIndex := rand.Intn(3)
@@ -350,7 +350,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 			expectedErr := fmt.Errorf("expected error")
 			result := make(map[int64][]byte)
 			lock := sync.Mutex{}
-			wa := &writeAtFunc{func(p []byte, off int64) (int, error) {
+			wa := NewWriteAt(func(p []byte, off int64) (int, error) {
 				if len(p) <= 0 {
 					return 0, nil
 				}
@@ -358,7 +358,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 				defer lock.Unlock()
 				result[off] = p
 				return len(p), nil
-			}}
+			})
 			send, wait := iu.NewMultiReadCloserToWriterAt(context.Background(), wa)
 			data, data1 := MakeByteArray(3)
 			atomic.StoreInt32(&CloseCount, 0)
@@ -427,7 +427,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 	t.Run("大量数据", func(t *testing.T) {
 		data := MakeBytes(1024*1024*100*(rand.Intn(5)+1) + 13)
 		var resultMap sync.Map
-		wa := &writeAtFunc{func(p []byte, off int64) (int, error) {
+		wa := NewWriteAt(func(p []byte, off int64) (int, error) {
 			if len(p) <= 0 {
 				return 0, nil
 			}
@@ -436,7 +436,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 			copy(tmp, p)
 			resultMap.Store(off, tmp)
 			return index, nil
-		}}
+		})
 		send, wait := iu.NewMultiReadCloserToWriterAt(context.Background(), wa)
 		parts := Split(data)
 		atomic.StoreInt32(&CloseCount, 0)

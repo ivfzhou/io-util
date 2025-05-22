@@ -98,6 +98,10 @@ func MakeBytes(n int) []byte {
 	return data
 }
 
+func NewWriteAt(f func([]byte, int64) (int, error)) io.WriterAt {
+	return &writeAtFunc{w: f}
+}
+
 func MakeByteArray(l int) ([][]byte, []byte) {
 	data := MakeBytes(0)
 	arr := make([][]byte, 0, l)
