@@ -3,6 +3,7 @@
 IO 操作函数库
 
 [![codecov](https://codecov.io/gh/ivfzhou/io-util/graph/badge.svg?token=QYBRAOTH5K)](https://codecov.io/gh/ivfzhou/io-util)
+[![Go Reference](https://pkg.go.dev/badge/gitee.com/ivfzhou/io-util.svg)](https://pkg.go.dev/gitee.com/ivfzhou/io-util)
 
 # 使用
 
