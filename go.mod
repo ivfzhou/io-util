@@ -10,4 +10,6 @@
 
 module gitee.com/ivfzhou/io-util
 
-go 1.24
+go 1.26
+
+retract [v1.0.0, v1.2.2]
