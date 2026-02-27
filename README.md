@@ -1,11 +1,11 @@
-# 说明
+# 一、说明
 
 IO 操作函数库
 
 [![codecov](https://codecov.io/gh/ivfzhou/io-util/graph/badge.svg?token=QYBRAOTH5K)](https://codecov.io/gh/ivfzhou/io-util)
 [![Go Reference](https://pkg.go.dev/badge/gitee.com/ivfzhou/io-util.svg)](https://pkg.go.dev/gitee.com/ivfzhou/io-util)
 
-# 使用
+# 二、使用
 
 ```shell
 go get gitee.com/ivfzhou/io-util@latest
@@ -56,8 +56,3 @@ func NewMultiReadCloserToWriterAt(ctx context.Context, wa io.WriterAt) (
 func NewMultiReadCloserToReader(ctx context.Context, rc ...io.ReadCloser) (
     r io.Reader, add func (rc io.ReadCloser) error, endAdd func ())
 ```
-
-# 联系作者
-
-电邮：ivfzhou@126.com  
-微信：h899123
