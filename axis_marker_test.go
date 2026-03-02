@@ -988,7 +988,7 @@ func TestAxisMarker_Get(t *testing.T) {
 
 func TestAxisMarker(t *testing.T) {
 	t.Run("随机长度写入，每个点只标记一次", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			data := make([]int, 1024*1024*(rand.Intn(5)+1)+10)
 			parts := Split(data)
 			axisMarker := &iu.AxisMarker{}
@@ -1003,7 +1003,7 @@ func TestAxisMarker(t *testing.T) {
 	})
 
 	t.Run("随机长度写入，有些点多次标记", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			data := make([]int, 1024*1024*(rand.Intn(5)+1)+10)
 			parts := Split(data)
 			offset := rand.Intn(len(data))

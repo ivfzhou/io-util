@@ -52,7 +52,7 @@ func ExampleNewMultiReadCloserToReader() {
 
 func TestNewMultiReadCloserToReader(t *testing.T) {
 	t.Run("正常运行", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			atomic.StoreInt32(&CloseCount, 0)
 			data, data2 := MakeByteArray(3)
 			rcs := make([]io.ReadCloser, 0, 4)
@@ -88,7 +88,7 @@ func TestNewMultiReadCloserToReader(t *testing.T) {
 	})
 
 	t.Run("没有数据", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			r, _, endAdd := iu.NewMultiReadCloserToReader(context.Background())
 			endAdd()
 			bs, err := io.ReadAll(r)
@@ -102,7 +102,7 @@ func TestNewMultiReadCloserToReader(t *testing.T) {
 	})
 
 	t.Run("存在空流", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			atomic.StoreInt32(&CloseCount, 0)
 			data, data2 := MakeByteArray(3)
 			rcs := make([]io.ReadCloser, 0, 4)
@@ -140,7 +140,7 @@ func TestNewMultiReadCloserToReader(t *testing.T) {
 	})
 
 	t.Run("上下文终止", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			atomic.StoreInt32(&CloseCount, 0)
 			data, data2 := MakeByteArray(3)
 			rcs := make([]io.ReadCloser, 0, 4)
@@ -188,7 +188,7 @@ func TestNewMultiReadCloserToReader(t *testing.T) {
 	})
 
 	t.Run("并发 add，上下文终止", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			atomic.StoreInt32(&CloseCount, 0)
 			data, _ := MakeByteArray(3)
 			rcs := make([]io.ReadCloser, 0, 4)
@@ -233,7 +233,7 @@ func TestNewMultiReadCloserToReader(t *testing.T) {
 	})
 
 	t.Run("endAdd 后 add", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			atomic.StoreInt32(&CloseCount, 0)
 			data, data2 := MakeByteArray(3)
 			rcs := make([]io.ReadCloser, 0, 4)
@@ -281,7 +281,7 @@ func TestNewMultiReadCloserToReader(t *testing.T) {
 	})
 
 	t.Run("读取失败", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			atomic.StoreInt32(&CloseCount, 0)
 			data, data2 := MakeByteArray(3)
 			rcs := make([]io.ReadCloser, 0, 4)
@@ -322,7 +322,7 @@ func TestNewMultiReadCloserToReader(t *testing.T) {
 	})
 
 	t.Run("关闭读取失败", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			atomic.StoreInt32(&CloseCount, 0)
 			data, data2 := MakeByteArray(3)
 			rcs := make([]io.ReadCloser, 0, 4)

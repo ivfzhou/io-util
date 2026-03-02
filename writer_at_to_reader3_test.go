@@ -54,7 +54,7 @@ func ExampleNewWriteAtToReader3() {
 
 func TestNewWriteAtToReader3(t *testing.T) {
 	t.Run("正常运行", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			wc, rc := iu.NewWriteAtToReader3()
 			expectedResult := MakeBytes(0)
 			go func() {
@@ -94,7 +94,7 @@ func TestNewWriteAtToReader3(t *testing.T) {
 	})
 
 	t.Run("同一字节位置可能多次写入", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			expectedResult := MakeBytes(0)
 			confusedData := MakeBytes(len(expectedResult) / 4)
 			wc, rc := iu.NewWriteAtToReader3()
@@ -106,8 +106,7 @@ func TestNewWriteAtToReader3(t *testing.T) {
 				t.Errorf("unexpected result: want %v, got %v", len(expectedResult), written)
 			}
 			wg := sync.WaitGroup{}
-			wg.Add(1)
-			go func() {
+			wg.Go(func() {
 				defer wg.Done()
 				parts := Split(expectedResult)
 				begin := rand.Intn(len(expectedResult) / 2)
@@ -132,7 +131,7 @@ func TestNewWriteAtToReader3(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: want nil, got %v", err)
 				}
-			}()
+			})
 			wg.Wait()
 			result, err := io.ReadAll(rc)
 			if err != nil {
@@ -148,7 +147,7 @@ func TestNewWriteAtToReader3(t *testing.T) {
 	})
 
 	t.Run("没有数据写入", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			wc, rc := iu.NewWriteAtToReader3()
 			err := wc.Close()
 			if err != nil {
@@ -168,7 +167,7 @@ func TestNewWriteAtToReader3(t *testing.T) {
 	})
 
 	t.Run("写入发生失败", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			wc, rc := iu.NewWriteAtToReader3()
 			expectedErr := errors.New("expected error")
 			data := MakeBytes(0)
@@ -215,7 +214,7 @@ func TestNewWriteAtToReader3(t *testing.T) {
 	})
 
 	t.Run("写入位置为负数", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			wc, rc := iu.NewWriteAtToReader3()
 			n, err := wc.WriteAt([]byte(""), -1)
 			if !errors.Is(err, iu.ErrOffsetCannotNegative) {
@@ -234,7 +233,7 @@ func TestNewWriteAtToReader3(t *testing.T) {
 	})
 
 	t.Run("关闭写入流后，再写入", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			wc, rc := iu.NewWriteAtToReader3()
 			err := wc.Close()
 			if err != nil {
@@ -254,7 +253,7 @@ func TestNewWriteAtToReader3(t *testing.T) {
 	})
 
 	t.Run("关闭读取流后，再读取", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			wc, rc := iu.NewWriteAtToReader3()
 			err := rc.Close()
 			if err != nil {
@@ -274,7 +273,7 @@ func TestNewWriteAtToReader3(t *testing.T) {
 	})
 
 	t.Run("多次关闭写入流", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			wc, rc := iu.NewWriteAtToReader3()
 			err := wc.Close()
 			if err != nil {
@@ -290,7 +289,7 @@ func TestNewWriteAtToReader3(t *testing.T) {
 	})
 
 	t.Run("多次关闭读取流", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			wc, rc := iu.NewWriteAtToReader3()
 			err := rc.Close()
 			if err != nil {
@@ -306,14 +305,13 @@ func TestNewWriteAtToReader3(t *testing.T) {
 	})
 
 	t.Run("并发写入期间，关闭写入流", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			wc, rc := iu.NewWriteAtToReader3()
 			expectedResult := MakeBytes(0)
 			successWritten := sync.Map{}
 			closeSuccessFlag := false
 			wg := &sync.WaitGroup{}
-			wg.Add(1)
-			go func() {
+			wg.Go(func() {
 				defer wg.Done()
 				var part = min(len(expectedResult)/10, 1024*1024*8)
 				wg := sync.WaitGroup{}
@@ -335,14 +333,13 @@ func TestNewWriteAtToReader3(t *testing.T) {
 						}
 					}(i)
 					if i/part == emitClose {
-						wg.Add(1)
-						go func() {
+						wg.Go(func() {
 							defer wg.Done()
 							err := wc.Close()
 							if err != nil {
 								t.Errorf("unexpected error: want nil, got %v", err)
 							}
-						}()
+						})
 					}
 				}
 				wg.Wait()
@@ -353,7 +350,7 @@ func TestNewWriteAtToReader3(t *testing.T) {
 				if err == nil {
 					closeSuccessFlag = true
 				}
-			}()
+			})
 			result, err := io.ReadAll(rc)
 			if err != nil {
 				t.Errorf("unexpected error: want nil, got %v", err)

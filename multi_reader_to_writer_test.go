@@ -29,7 +29,7 @@ import (
 
 func TestNewMultiReadCloserToWriter(t *testing.T) {
 	t.Run("正常运行", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			type writeInfo struct {
 				offset int
 				data   []byte
@@ -88,7 +88,7 @@ func TestNewMultiReadCloserToWriter(t *testing.T) {
 	})
 
 	t.Run("上下文终止", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			ctx, cancel := NewCtxCancelWithError()
 			expectedErr := errors.New("expected error")
 			type writeInfo struct {
@@ -149,7 +149,7 @@ func TestNewMultiReadCloserToWriter(t *testing.T) {
 	})
 
 	t.Run("读取失败", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			type writeInfo struct {
 				offset int
 				data   []byte

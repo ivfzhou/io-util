@@ -23,7 +23,7 @@ import (
 
 func TestSegmentManager(t *testing.T) {
 	t.Run("一个段中写入和读取", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			m := &iu.SegmentManager{}
 			expectedResult := MakeBytes(0)
 			n, err := m.WriteAt(expectedResult, 0)
@@ -49,7 +49,7 @@ func TestSegmentManager(t *testing.T) {
 	})
 
 	t.Run("一个段中部写入", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			m := &iu.SegmentManager{}
 			expectedResult := MakeBytes(0)
 			n, err := m.WriteAt(expectedResult, 10)
@@ -72,7 +72,7 @@ func TestSegmentManager(t *testing.T) {
 	})
 
 	t.Run("一个段中多次读取", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			m := &iu.SegmentManager{}
 			expectedResult := MakeBytes(0)
 			n, err := m.WriteAt(expectedResult, 0)
@@ -110,7 +110,7 @@ func TestSegmentManager(t *testing.T) {
 	})
 
 	t.Run("一个段读取，刚好读完", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			m := &iu.SegmentManager{}
 			expectedResult := MakeBytes(iu.SegmentLength)
 			n, err := m.WriteAt(expectedResult, 0)
@@ -136,7 +136,7 @@ func TestSegmentManager(t *testing.T) {
 	})
 
 	t.Run("跨一个段读取，超过写入", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			writeLength := iu.SegmentLength + 10
 			expectedResult := MakeBytes(writeLength)
 			m := &iu.SegmentManager{}
@@ -174,7 +174,7 @@ func TestSegmentManager(t *testing.T) {
 	})
 
 	t.Run("在读取位置之前写入", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			m := &iu.SegmentManager{}
 			expectedResult := MakeBytes(0)
 			n, err := m.WriteAt(expectedResult, 0)
@@ -233,7 +233,7 @@ func TestSegmentManager(t *testing.T) {
 	})
 
 	t.Run("跨多个段读取", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			m := &iu.SegmentManager{}
 			expectedResult := MakeBytes(iu.SegmentLength*3 + 40)
 			n, err := m.WriteAt(expectedResult, 0)
@@ -290,7 +290,7 @@ func TestSegmentManager(t *testing.T) {
 	})
 
 	t.Run("随机写入，每个位置只写一次", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			expectedResult := MakeBytes(0)
 			parts := Split(expectedResult)
 			m := &iu.SegmentManager{}
@@ -322,7 +322,7 @@ func TestSegmentManager(t *testing.T) {
 	})
 
 	t.Run("随机写入，同一个位置可能多次写入", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			expectedResult := MakeBytes(0)
 			parts := Split(expectedResult)
 			offset := rand.Intn(len(expectedResult))

@@ -23,7 +23,7 @@ import (
 
 func TestWriteAtAll(t *testing.T) {
 	t.Run("正常运行", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			offset := rand.Int63n(100)
 			data := MakeBytes(0)
 			result := make([]byte, offset+int64(len(data)))
@@ -49,7 +49,7 @@ func TestWriteAtAll(t *testing.T) {
 	})
 
 	t.Run("写入失败", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			offset := rand.Int63n(100)
 			data := MakeBytes(0)
 			result := make([]byte, offset+int64(len(data)))

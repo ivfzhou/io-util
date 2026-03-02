@@ -276,11 +276,11 @@ func (m *AxisMarker) String() string {
 	sb.WriteString("{")
 	for i := 0; i < len(m.lines)-1; i++ {
 		l := m.lines[i]
-		sb.WriteString(fmt.Sprintf("[%d,%d), ", l.offset, l.offset+l.length))
+		_, _ = fmt.Fprintf(&sb, "[%d,%d), ", l.offset, l.offset+l.length)
 	}
 	if len(m.lines) > 0 {
 		l := m.lines[len(m.lines)-1]
-		sb.WriteString(fmt.Sprintf("[%d,%d)}", l.offset, l.offset+l.length))
+		_, _ = fmt.Fprintf(&sb, "[%d,%d)}", l.offset, l.offset+l.length)
 	}
 	return sb.String()
 }

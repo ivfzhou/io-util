@@ -102,21 +102,6 @@ func closeIO(closers ...io.Closer) {
 	}
 }
 
-// 确保 x - y 计算不会溢出。
-func substractionOverflow(x, y int) {
-	if x < 0 && y > 0 {
-		if x < -math.MaxInt+y {
-			panic(fmt.Sprintf("calculate overflow: %d - %d", x, y))
-		}
-		return
-	}
-	if x > 0 && y < 0 {
-		if x > math.MaxInt+y {
-			panic(fmt.Sprintf("calculate overflow: %d - %d", x, y))
-		}
-	}
-}
-
 // 确保 x + y 计算不会溢出。
 func additionOverflow(x, y int) {
 	if x < 0 && y < 0 {

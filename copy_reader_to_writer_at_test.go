@@ -11,7 +11,7 @@ import (
 
 func TestCopyReaderToWriterAt(t *testing.T) {
 	t.Run("正常运行", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			data := MakeBytes(0)
 			result := make([]byte, len(data))
 			offset := rand.Int63n(10)
@@ -37,7 +37,7 @@ func TestCopyReaderToWriterAt(t *testing.T) {
 	})
 
 	t.Run("读取失败", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			data := MakeBytes(0)
 			result := make([]byte, len(data))
 			offset := rand.Int63n(10)
@@ -66,7 +66,7 @@ func TestCopyReaderToWriterAt(t *testing.T) {
 	})
 
 	t.Run("写入失败", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			data := MakeBytes(0)
 			result := make([]byte, len(data))
 			offset := rand.Int63n(10)

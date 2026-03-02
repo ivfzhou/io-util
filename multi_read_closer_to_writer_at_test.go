@@ -31,7 +31,7 @@ import (
 
 func TestMultiReadCloserToWriterAt(t *testing.T) {
 	t.Run("正常运行", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			resultMap := make(map[int64][]byte)
 			lock := sync.Mutex{}
 			wa := NewWriteAt(func(p []byte, off int64) (int, error) {
@@ -100,7 +100,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 	})
 
 	t.Run("读取发生错误", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			resultMap := make(map[int64][]byte)
 			lock := sync.Mutex{}
 			wa := NewWriteAt(func(p []byte, off int64) (int, error) {
@@ -174,7 +174,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 	})
 
 	t.Run("写入发生错误", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			resultMap := make(map[int64][]byte)
 			lock := sync.Mutex{}
 			occurErrorIndex := rand.Intn(3)
@@ -256,7 +256,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 	})
 
 	t.Run("上下文终止", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			ctx, cancel := NewCtxCancelWithError()
 			result := make(map[int64][]byte)
 			lock := sync.Mutex{}
@@ -346,7 +346,7 @@ func TestMultiReadCloserToWriterAt(t *testing.T) {
 	})
 
 	t.Run("关闭读取失败", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			expectedErr := fmt.Errorf("expected error")
 			result := make(map[int64][]byte)
 			lock := sync.Mutex{}
