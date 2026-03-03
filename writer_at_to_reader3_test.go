@@ -107,7 +107,6 @@ func TestNewWriteAtToReader3(t *testing.T) {
 			}
 			wg := sync.WaitGroup{}
 			wg.Go(func() {
-				defer wg.Done()
 				parts := Split(expectedResult)
 				begin := rand.Intn(len(expectedResult) / 2)
 				wg := sync.WaitGroup{}
@@ -312,7 +311,6 @@ func TestNewWriteAtToReader3(t *testing.T) {
 			closeSuccessFlag := false
 			wg := &sync.WaitGroup{}
 			wg.Go(func() {
-				defer wg.Done()
 				var part = min(len(expectedResult)/10, 1024*1024*8)
 				wg := sync.WaitGroup{}
 				emitClose := rand.Intn(len(expectedResult)/part/2) + 1
@@ -334,7 +332,6 @@ func TestNewWriteAtToReader3(t *testing.T) {
 					}(i)
 					if i/part == emitClose {
 						wg.Go(func() {
-							defer wg.Done()
 							err := wc.Close()
 							if err != nil {
 								t.Errorf("unexpected error: want nil, got %v", err)
