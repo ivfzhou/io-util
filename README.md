@@ -1,58 +1,87 @@
 # 一、说明
 
-IO 操作函数库
+Go IO 操作工具库，提供并发安全的流转换、多路读写合并、内存管理、坐标轴标记等通用组件。
 
 [![codecov](https://codecov.io/gh/ivfzhou/io-util/graph/badge.svg?token=QYBRAOTH5K)](https://codecov.io/gh/ivfzhou/io-util)
 [![Go Reference](https://pkg.go.dev/badge/gitee.com/ivfzhou/io-util.svg)](https://pkg.go.dev/gitee.com/ivfzhou/io-util)
 
-# 二、使用
+# 二、安装
 
 ```shell
 go get gitee.com/ivfzhou/io-util@latest
 ```
 
-```golang
-// NewWriteAtToReader 获取一个 WriteAtCloser 和 io.ReadCloser 对象，其中 wc 用于并发写入数据，与此同时 rc 读取出已经写入好的数据。
-//
-// wc：写入流。字节临时写入到磁盘。写入完毕后关闭，则 rc 会全部读取完后返回 io.EOF。
-//
-// rc：读取流。
-//
-// wc 发生的错误会传递给 rc 返回。
+要求 Go >= 1.22。
 
-func NewWriteAtToReader() (wc WriteAtCloser, rc io.ReadCloser)
+# 三、使用
 
-// NewMultiReadCloserToWriterAt 将 rc 数据读取并写入 wa。
-//
-// ctx：上下文，如果终止了将终止流读写，并返回 ctx.Err()。
-//
-// wa：从 rc 中读取的数据将写入它。
-//
-// send：添加需要读取的数据流 rc。offset 表示从 wa 指定位置开始读取。所有 rc 都将关闭。若 rc 是空，将触发恐慌。
-//
-// wait：添加完所有 rc 后调用，等待所有数据处理完毕。fastExit 表示当发生错误时，立刻返回该错误。
-//
-// 注意：若 wa 是空，将触发恐慌。
-func NewMultiReadCloserToWriterAt(ctx context.Context, wa io.WriterAt) (
-    send func (rc io.ReadCloser, offset int64) error, wait func (fastExit bool) error)
+## 3.1 WriteAt → Reader 管道转换
 
-// NewMultiReadCloserToReader 依次将 rc 中的数据转到 r 中读出。每一个 rc 读取数据直到 io.EOF 后调用关闭。
-//
-// ctx：上下文。如果终止了，r 将返回 ctx.Err()。
-//
-// rc：要读取数据的流。可以为空。
-//
-// r：合并所有 rc 数据的流。
-//
-// add：添加 rc，返回错误表明读取 rc 发生错误，将不再读取剩余的 rc，且所有添加进去的 rc 都会调用关闭。可以安全的添加空 rc。
-//
-// endAdd：调用后表明不会再有 rc 添加，当所有 rc 数据读完了时，r 将返回 io.EOF。
-//
-// 注意：所有添加进去的 ReadCloser 都会被关闭，即使发生了错误。除非 r 没有读取直到 io.EOF。
-//
-// 注意：请务必调用 endAdd 以便 r 能读取完毕返回 io.EOF。
-//
-// 注意：在 endAdd 后再 add rc 将会触发恐慌返回 ErrAddAfterEnd，且该 rc 不会被关闭。
-func NewMultiReadCloserToReader(ctx context.Context, rc ...io.ReadCloser) (
-    r io.Reader, add func (rc io.ReadCloser) error, endAdd func ())
+核心模式：创建一对写入端（`WriteAtCloser`，支持并发随机写入）和读取端（`io.ReadCloser`，顺序读出已写入数据）。写入端关闭后，读取端读完数据返回 `io.EOF`。写入端的错误会传递给读取端。
+
+### 接口定义
+
+```go
+type WriteAtCloser interface {
+    io.WriterAt
+    io.Closer
+    CloseByError(error) error // 带错误关闭，error 会传递给 Reader
+}
 ```
+
+
+## 3.2 多路 ReadCloser 合并
+
+### `NewMultiReadCloserToWriterAt` — 多路并发写入 WriterAt
+
+将多个 `io.ReadCloser` 的数据**并发**地以各自指定的偏移量写入同一个 `io.WriterAt`。
+
+```go
+func NewMultiReadCloserToWriterAt(ctx context.Context, wa io.WriterAt) (
+    send func(rc io.ReadCloser, offset int64) error,
+    wait func(fastExit bool) error,
+)
+```
+
+- **send** — 提交一个 `rc`，数据将从 `wa` 的 `offset` 位置开始写入。所有 `rc` 在处理完毕后自动关闭。
+- **wait** — 调用后等待所有数据处理完毕。`fastExit=true` 表示遇错立即返回。
+
+### `NewMultiReadCloserToWriter` — 多路并发写入回调函数
+
+将多个 `io.ReadCloser` **并发**读取后通过回调写入目标位置。
+
+```go
+func NewMultiReadCloserToWriter(ctx context.Context, writer func(offset int, p []byte)) (
+    send func(readSize, offset int, reader io.ReadCloser),
+    wait func() error,
+)
+```
+
+- **send** — 提交一个 `reader`，从中读取 `readSize` 字节写入 `offset` 位置。
+- **wait** — 等待全部读取完成。
+
+### `NewMultiReadCloserToReader` — 多路顺序合并为单一 Reader
+
+将多个 `io.ReadCloser` **顺序**合并为一个 `io.Reader`，读完一个自动切换到下一个。
+
+```go
+func NewMultiReadCloserToReader(ctx context.Context, rc ...io.ReadCloser) (
+    r io.Reader,
+    add func(rc io.ReadCloser) error,
+    endAdd func(),
+)
+```
+
+- **r** — 合并后的读取流。
+- **add** — 动态添加新的 `rc`。发生错误时停止添加，已添加的 `rc` 全部关闭。
+- **endAdd** — 声明不再添加新 `rc`，所有数据读完后 `r` 返回 `io.EOF`（务必调用）。
+
+---
+
+## 3.3 Reader → WriterAt 流式拷贝
+
+```go
+func CopyReaderToWriterAt(r io.Reader, w io.WriterAt, offset int64, nonBuffer bool) (written int64, err error)
+```
+
+将 `r` 的数据流式写入 `w` 的指定偏移位置，直到 `r` 返回 `io.EOF`。`nonBuffer=true` 每次分配新内存；`false` 复用缓冲区并按需扩容。
