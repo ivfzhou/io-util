@@ -139,6 +139,7 @@ func (m *SegmentManager) Discard() {
 	}
 	m.segments = nil
 	m.readPosition = 0
+	m.axisMarker = AxisMarker{}
 }
 
 // 分配段。

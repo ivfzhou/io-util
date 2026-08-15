@@ -33,7 +33,7 @@ type multiReader struct {
 	// 当前正在读取的流。
 	currentReadCloser io.ReadCloser
 	// 调用 endAdd 行为标识。
-	endAddSignal int32
+	endAddSignal atomic.Int32
 }
 
 // NewMultiReadCloserToReader 依次将 rc 中的数据转到 r 中读出。每一个 rc 读取数据直到 io.EOF 后调用关闭。
@@ -70,7 +70,7 @@ func NewMultiReadCloserToReader(ctx context.Context, rc ...io.ReadCloser) (
 
 	add = func(rc io.ReadCloser) error {
 		// 已调用 endAdd 不可再添加。
-		if atomic.LoadInt32(&mr.endAddSignal) > 0 {
+		if mr.endAddSignal.Load() > 0 {
 			panic(ErrAddAfterEnd)
 		}
 
@@ -94,8 +94,8 @@ func NewMultiReadCloserToReader(ctx context.Context, rc ...io.ReadCloser) (
 	}
 
 	endAdd = func() {
-		atomic.AddInt32(&mr.endAddSignal, 1) // 停止 add，将不能再添加进去 rc。
-		mr.readCloserQueue.Close()           // 关闭队列。
+		mr.endAddSignal.Add(1)     // 停止 add，将不能再添加进去 rc。
+		mr.readCloserQueue.Close() // 关闭队列。
 	}
 
 	return mr, add, endAdd

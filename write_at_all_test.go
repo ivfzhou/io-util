@@ -28,7 +28,7 @@ func TestWriteAtAll(t *testing.T) {
 			data := MakeBytes(0)
 			result := make([]byte, offset+int64(len(data)))
 			wa := NewWriteAt(func(p []byte, o int64) (int, error) {
-				n := rand.Intn(len(p) + 1)
+				n := rand.Intn(len(p)) + 1
 				if len(p) > len(result[o:]) {
 					t.Errorf("unexpected p: want %v, got %v", len(p), len(result[o:]))
 				}
@@ -57,7 +57,7 @@ func TestWriteAtAll(t *testing.T) {
 			count := 0
 			index := rand.Intn(len(data) + 1)
 			wa := NewWriteAt(func(p []byte, o int64) (int, error) {
-				n := rand.Intn(len(p) + 1)
+				n := rand.Intn(len(p)) + 1
 				if len(p) > len(result[o:]) {
 					t.Errorf("unexpected p: want %v, got %v", len(p), len(result[o:]))
 				}

@@ -24,6 +24,9 @@ func WriteAtAll(wa io.WriterAt, offset int64, p []byte) (written int64, err erro
 		if err != nil {
 			return written, err
 		}
+		if n <= 0 { // 没有产生任何写入进度，避免死循环。
+			return written, io.ErrShortWrite
+		}
 		p = p[min(n, len(p)):]
 	}
 	return

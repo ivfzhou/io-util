@@ -7,7 +7,7 @@ import (
 
 type ReadCounter struct {
 	reader io.Reader
-	count  int64
+	count  atomic.Int64
 }
 
 // NewReadCounter 读取字节计数器。获取 reader 被读出的字节数。调用 [ReadCounter.Count] 获取字节数。
@@ -21,11 +21,11 @@ func NewReadCounter(reader io.Reader) *ReadCounter {
 
 func (r *ReadCounter) Read(p []byte) (n int, err error) {
 	n, err = r.reader.Read(p)
-	atomic.AddInt64(&r.count, int64(n))
+	r.count.Add(int64(n))
 	return
 }
 
 // Count 获取被读出的字节数。
 func (r *ReadCounter) Count() int64 {
-	return atomic.LoadInt64(&r.count)
+	return r.count.Load()
 }

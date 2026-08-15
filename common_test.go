@@ -43,7 +43,7 @@ type writeAtFunc struct {
 type readCloser2 struct {
 	closeErr    error
 	readErr     error
-	closeFlag   int32
+	closeFlag   atomic.Int32
 	data        []byte
 	total       int
 	readCount   int
@@ -53,7 +53,7 @@ type readCloser2 struct {
 type readCloser struct {
 	closeErr    error
 	readErr     error
-	closeFlag   int32
+	closeFlag   atomic.Int32
 	data        []byte
 	readCount   int
 	total       int
@@ -183,7 +183,7 @@ func (rc *readCloser) Read(p []byte) (int, error) {
 }
 
 func (rc *readCloser) Close() error {
-	if atomic.CompareAndSwapInt32(&rc.closeFlag, 0, 1) {
+	if rc.closeFlag.CompareAndSwap(0, 1) {
 		atomic.AddInt32(&CloseCount, -1)
 		return rc.closeErr
 	}
@@ -243,7 +243,7 @@ func (rc *readCloser2) Read() ([]byte, error) {
 }
 
 func (rc *readCloser2) Close() error {
-	if atomic.CompareAndSwapInt32(&rc.closeFlag, 0, 1) {
+	if rc.closeFlag.CompareAndSwap(0, 1) {
 		atomic.AddInt32(&CloseCount, -1)
 		return rc.closeErr
 	}

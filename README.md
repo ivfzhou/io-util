@@ -11,8 +11,6 @@ Go IO 操作工具库，提供并发安全的流转换、多路读写合并、�
 go get gitee.com/ivfzhou/io-util@latest
 ```
 
-要求 Go >= 1.22。
-
 # 三、使用
 
 ## 3.1 WriteAt → Reader 管道转换
